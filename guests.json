@@ -1,0 +1,7 @@
+[
+  { "id": "g01", "name": "Michael Johnson", "notes": "Alex's classmate, goes by Mikey. Parents: Sarah and Tom Johnson" },
+  { "id": "g02", "name": "Emma Rodriguez", "notes": "Neighbor, parents: Carlos and Ana Rodriguez" },
+  { "id": "g03", "name": "Liam Chen", "notes": "Soccer teammate, mom: Wendy Chen" },
+  { "id": "g04", "name": "Grandma Example", "notes": "Family. Also called Nana" },
+  { "id": "g05", "name": "Uncle Dave", "notes": "Family. David Example" }
+]

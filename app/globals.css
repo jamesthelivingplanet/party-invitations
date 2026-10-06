@@ -24,3 +24,303 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ---- Toy-car stunt hero (app/racing-car.tsx) ---- */
+/* One 5s master timeline drives every synced layer (rc-cycle). */
+.rc-stage {
+  --cycle: 5s;
+  position: relative;
+  height: clamp(172px, 6vw + 150px, 200px);
+  overflow: hidden;
+  container-type: inline-size;
+  background: #18181b;
+}
+.rc-scene {
+  position: absolute;
+  inset: -4px;
+  --car-w: clamp(124px, 16cqw, 176px);
+  --ramp-w: clamp(80px, 12cqw, 132px);
+  --ramp-h: calc(var(--ramp-w) / 3);
+  --lip: calc(var(--ramp-h) * 0.85);
+  --ramp-x: max(176px, 40cqw); /* x of the ramp lip */
+  --jump: calc(15cqw + 14px);
+  --apex: clamp(26px, 4cqw, 40px);
+  --ground: 30px; /* where tires touch the track */
+  animation: rc-shake var(--cycle) linear infinite;
+}
+
+/* far layer */
+.rc-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 90% at 20% 0%, #facc1522, transparent 70%),
+    radial-gradient(50% 80% at 85% 10%, #ef444426, transparent 70%),
+    linear-gradient(#18181b, #1f1f24 70%, #18181b);
+}
+.rc-bokeh {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 200%;
+  height: 96px;
+  opacity: 0.55;
+  background:
+    radial-gradient(circle at 30px 20px, #fde04780 0 3px, transparent 4px),
+    radial-gradient(circle at 110px 54px, #f9731670 0 2px, transparent 3px),
+    radial-gradient(circle at 190px 30px, #ffffff50 0 2px, transparent 3px),
+    radial-gradient(circle at 250px 70px, #ef444470 0 3px, transparent 4px),
+    radial-gradient(circle at 330px 14px, #fde04760 0 2px, transparent 3px);
+  background-size: 360px 96px;
+  animation: rc-drift 24s linear infinite;
+}
+
+/* the track: lit top deck + front face, joints every 160px */
+.rc-track {
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  bottom: 10px;
+  height: 28px;
+  filter: drop-shadow(0 8px 6px #000a);
+}
+.rc-track-top {
+  position: absolute;
+  inset: 0 0 12px 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 157px, #7c2d12 157px 160px),
+    linear-gradient(#ffd08a 0 2px, #ff9a2e 2px 4px, #ff8a1a 4px 7px, #ffb04d 7px 8px, #ff8a1a 8px 13px, #f97316 13px);
+  transform: skewX(-30deg);
+}
+.rc-track-face {
+  position: absolute;
+  inset: 16px 0 0 0;
+  border-radius: 0 0 3px 3px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 150px, #2563eb 150px 166px, transparent 166px 160px),
+    repeating-linear-gradient(90deg, transparent 0 157px, #431407 157px 160px),
+    linear-gradient(#ea580c, #c2410c 70%, #7c2d12);
+}
+.rc-ramp {
+  position: absolute;
+  width: var(--ramp-w);
+  height: var(--ramp-h);
+  bottom: calc(var(--ground) - 1px);
+  left: calc(var(--ramp-x) - var(--ramp-w) * 116 / 120);
+  overflow: visible;
+  filter: drop-shadow(0 3px 2px #0008);
+}
+
+/* dim background loop */
+.rc-loop {
+  position: absolute;
+  right: clamp(-30px, 6cqw - 40px, 80px);
+  bottom: 24px;
+  width: clamp(110px, 14cqw, 150px);
+  opacity: 0.35;
+  filter: blur(0.6px);
+}
+.rc-impact {
+  position: absolute;
+  left: 2%;
+  bottom: -6px;
+  width: 46px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid #fde68a;
+  box-shadow: 0 0 14px #fbbf24, inset 0 0 10px #fff7;
+  opacity: 0;
+  animation: rc-impact var(--cycle) linear infinite;
+}
+
+/* car layers: x -> air (y + pitch) -> squash/stretch */
+.rc-drive {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--ground) - var(--car-w) * 2 / 210);
+  width: var(--car-w);
+  will-change: transform;
+  animation: rc-drive var(--cycle) linear infinite;
+}
+.rc-air {
+  transform-origin: 21% 97%;
+  animation: rc-air var(--cycle) linear infinite;
+}
+.rc-squash {
+  transform-origin: 50% 100%;
+  animation: rc-squash var(--cycle) linear infinite;
+}
+.rc-car {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.rc-body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: rc-bounce 0.24s ease-in-out infinite alternate;
+}
+.rc-wheel {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rc-spin 0.28s linear infinite;
+}
+.rc-fire {
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  animation: rc-fire 0.09s ease-in-out infinite alternate;
+}
+.rc-speed {
+  animation: rc-speed 0.22s linear infinite;
+}
+.rc-shadow {
+  position: absolute;
+  left: 4%;
+  width: 92%;
+  bottom: -5px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #000c, #0000);
+  animation: rc-shadow var(--cycle) linear infinite;
+}
+.rc-dust {
+  position: absolute;
+  left: 8%;
+  bottom: 0;
+  animation: rc-dust-vis var(--cycle) linear infinite;
+}
+.rc-dust i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #e7e5e4cc, #a8a29e55 60%, transparent 70%);
+  animation: rc-puff 0.6s ease-out infinite;
+}
+.rc-dust i:nth-child(2) { animation-delay: -0.15s; }
+.rc-dust i:nth-child(3) { animation-delay: -0.3s; }
+.rc-dust i:nth-child(4) { animation-delay: -0.45s; }
+.rc-sparks {
+  position: absolute;
+  left: 14%;
+  bottom: 4px;
+}
+.rc-sparks i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #fff, #fde047 40%, #f97316);
+  box-shadow: 0 0 6px #fbbf24;
+  transform-origin: 0 50%;
+  opacity: 0;
+  animation: rc-spark var(--cycle) linear infinite;
+}
+
+@keyframes rc-drive {
+  0% {
+    transform: translateX(calc(var(--car-w) * -1.25));
+    animation-timing-function: cubic-bezier(0.35, 0, 0.75, 1);
+  }
+  27% { transform: translateX(calc(var(--ramp-x) - var(--ramp-w) - var(--car-w) * 0.76)); }
+  33% { transform: translateX(calc(var(--ramp-x) - var(--car-w) * 0.76)); }
+  36% { transform: translateX(calc(var(--ramp-x) - var(--car-w) * 0.24)); }
+  56% {
+    transform: translateX(calc(var(--ramp-x) + var(--jump)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6);
+  }
+  74%, 100% { transform: translateX(calc(100cqw + var(--car-w) * 0.9)); }
+}
+@keyframes rc-air {
+  0%, 27% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(0) rotate(-8deg); }
+  33% { transform: translateY(calc(var(--lip) * -0.18)) rotate(-16deg); }
+  36% {
+    transform: translateY(calc(var(--lip) * -1)) rotate(-15deg);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  46% {
+    transform: translateY(calc(var(--lip) * -1 - var(--apex))) rotate(-5deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  56% { transform: translateY(0) rotate(-6deg); animation-timing-function: ease-in; }
+  58% { transform: translateY(0) rotate(1.5deg); }
+  60% { transform: translateY(0) rotate(-0.8deg); }
+  62%, 100% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes rc-squash {
+  0%, 30% { transform: scale(1, 1); }
+  36% { transform: scale(0.96, 1.05); }
+  44%, 56% { transform: scale(1, 1); }
+  58% { transform: scale(1.07, 0.86); }
+  61% { transform: scale(0.97, 1.05); }
+  64%, 100% { transform: scale(1, 1); }
+}
+@keyframes rc-shadow {
+  0%, 27% { transform: scale(1); opacity: 1; }
+  36% { transform: translateX(-6%) scale(0.8); opacity: 0.6; }
+  46% { transform: translateX(4%) scale(0.5); opacity: 0.3; }
+  56%, 100% { transform: scale(1); opacity: 1; }
+}
+@keyframes rc-dust-vis {
+  0%, 27% { opacity: 1; }
+  30%, 55% { opacity: 0; }
+  57%, 100% { opacity: 1; }
+}
+@keyframes rc-puff {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 0.9; }
+  100% { transform: translate(-46px, -14px) scale(1.9); opacity: 0; }
+}
+@keyframes rc-spark {
+  0%, 55.5% { opacity: 0; transform: translate(0, 0) rotate(var(--r)) scaleX(0.4); }
+  56.5% { opacity: 1; transform: translate(0, 0) rotate(var(--r)) scaleX(1.2); }
+  64% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)) scaleX(0.3); }
+  100% { opacity: 0; }
+}
+@keyframes rc-impact {
+  0%, 55.5% { opacity: 0; transform: scale(0.2); }
+  56.5% { opacity: 1; transform: scale(0.6); }
+  61% { opacity: 0; transform: scale(2.2, 1.4); }
+  100% { opacity: 0; }
+}
+@keyframes rc-shake {
+  0%, 56% { transform: translate(0, 0); }
+  57% { transform: translate(-1px, 3px); }
+  58% { transform: translate(1px, -2px); }
+  59% { transform: translate(-1px, 1px); }
+  60%, 100% { transform: translate(0, 0); }
+}
+@keyframes rc-bounce {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(-1.6px) rotate(-0.6deg); }
+}
+@keyframes rc-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes rc-fire {
+  from { transform: scale(0.75, 0.85); opacity: 0.75; }
+  to { transform: scale(1.15, 1.1); opacity: 1; }
+}
+@keyframes rc-speed {
+  0% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-12px); opacity: 0.55; }
+}
+@keyframes rc-drift {
+  to { transform: translateX(-360px); }
+}
+
+/* Reduced motion: a frozen mid-air hero pose over the ramp. */
+@media (prefers-reduced-motion: reduce) {
+  .rc-scene, .rc-scene *, .rc-scene *::before {
+    animation: none !important;
+  }
+  .rc-drive { transform: translateX(calc(var(--ramp-x) + var(--jump) * 0.25 - var(--car-w) * 0.2)); }
+  .rc-air { transform: translateY(calc(var(--lip) * -1 - var(--apex) * 0.85)) rotate(-8deg); }
+  .rc-shadow { transform: translateX(-4%) scale(0.6); opacity: 0.4; }
+  .rc-dust, .rc-impact { opacity: 0; }
+}

@@ -1,0 +1,73 @@
+export const LOCALES = ["en", "es"] as const;
+export type Locale = (typeof LOCALES)[number];
+
+export function resolveLocale(param?: string | string[], acceptLanguage?: string | null): Locale {
+  const p = Array.isArray(param) ? param[0] : param;
+  if (p === "en" || p === "es") return p;
+  return acceptLanguage?.toLowerCase().startsWith("es") ? "es" : "en";
+}
+
+const en = {
+  startEngines: "Start your engines",
+  title: (name: string) => `${name}'s Birthday Race`,
+  invited: (child: string, theme: string) =>
+    `You're invited to ${child}'s ${theme}-themed birthday party!`,
+  date: "📅 Date",
+  time: "⏰ Time",
+  where: "📍 Where",
+  rsvpBy: "✉️ RSVP by",
+  tbd: "To be announced",
+  inRace: "Are you in the race?",
+  yourName: "Your name",
+  yourNamePh: "e.g. Sarah Johnson",
+  relation: "Who are you / who are you replying for?",
+  relationPh: "e.g. Mikey's mom, or: I'm Mikey from school",
+  canYouMakeIt: "Can you make it?",
+  yes: "🏎️ Yes!",
+  no: "🛑 Can't make it",
+  howMany: "How many people are coming (including you)?",
+  send: "Send RSVP",
+  sending: "Sending…",
+  doneYesTitle: "You're on the starting grid!",
+  doneNoTitle: "Thanks for letting us know!",
+  doneYes: "Alex can't wait to see you at the party.",
+  doneNo: "We'll miss you at the race.",
+  errMissing: "Please fill in your name and who you are.",
+  errGeneric: "Something went wrong. Try again!",
+  language: "Idioma",
+  switchTo: "Español",
+};
+
+const es: typeof en = {
+  startEngines: "Enciendan sus motores",
+  title: (name) => `La Carrera de Cumpleaños de ${name}`,
+  invited: (child, theme) =>
+    `¡Estás invitado a la fiesta de cumpleaños de ${child}, con temática de ${theme}!`,
+  date: "📅 Fecha",
+  time: "⏰ Hora",
+  where: "📍 Lugar",
+  rsvpBy: "✉️ Confirmar antes del",
+  tbd: "Por confirmar",
+  inRace: "¿Te unes a la carrera?",
+  yourName: "Tu nombre",
+  yourNamePh: "p. ej. Sara Johnson",
+  relation: "¿Quién eres / por quién respondes?",
+  relationPh: "p. ej. la mamá de Mikey, o: soy Mikey, de la escuela",
+  canYouMakeIt: "¿Puedes venir?",
+  yes: "🏎️ ¡Sí!",
+  no: "🛑 No puedo ir",
+  howMany: "¿Cuántas personas vienen (contándote a ti)?",
+  send: "Enviar confirmación",
+  sending: "Enviando…",
+  doneYesTitle: "¡Ya estás en la parrilla de salida!",
+  doneNoTitle: "¡Gracias por avisarnos!",
+  doneYes: "Alex no puede esperar a verte en la fiesta.",
+  doneNo: "Te extrañaremos en la carrera.",
+  errMissing: "Por favor escribe tu nombre y quién eres.",
+  errGeneric: "Algo salió mal. ¡Inténtalo de nuevo!",
+  language: "Language",
+  switchTo: "English",
+};
+
+export const dictionaries = { en, es };
+export type Dictionary = typeof en;
