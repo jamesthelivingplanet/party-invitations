@@ -146,7 +146,7 @@ export function Section({
   children,
 }: {
   title: string;
-  count: number;
+  count?: number;
   description?: string;
   children: ReactNode;
 }) {
@@ -155,9 +155,11 @@ export function Section({
       <div>
         <h2 className="flex items-center gap-2 text-lg font-bold text-zinc-900">
           {title}
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-semibold tabular-nums text-zinc-700">
-            {count}
-          </span>
+          {count !== undefined && (
+            <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-semibold tabular-nums text-zinc-700">
+              {count}
+            </span>
+          )}
         </h2>
         {description && <p className="mt-0.5 text-sm text-zinc-600">{description}</p>}
       </div>

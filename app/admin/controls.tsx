@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
-import guests from "@/guests.json";
+import type { Guest } from "@/lib/guests";
 import { decide } from "./actions";
 import { ActionForm } from "./action-form";
-
-const guestNames = Object.fromEntries(guests.map((g) => [g.id, g.name]));
 
 const label = "mb-1.5 block text-sm font-semibold text-zinc-800";
 const field =
@@ -11,17 +9,14 @@ const field =
 
 /** A bare form for low-risk, instantly reversible actions (undo). */
 function PlainForm({
-  adminKey,
   id,
   children,
 }: {
-  adminKey: string;
   id: number;
   children: ReactNode;
 }) {
   return (
     <form action={decide}>
-      <input type="hidden" name="key" value={adminKey} />
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="intent" value="undo" />
       {children}
@@ -29,9 +24,9 @@ function PlainForm({
   );
 }
 
-export function UndoButton({ adminKey, id, label = "Undo" }: { adminKey: string; id: number; label?: string }) {
+export function UndoButton({ id, label = "Undo" }: { id: number; label?: string }) {
   return (
-    <PlainForm adminKey={adminKey} id={id}>
+    <PlainForm id={id}>
       <button className="rounded-md px-1.5 py-1 text-sm font-semibold text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900">
         {label}
       </button>
@@ -51,18 +46,19 @@ function Panel({ title, hint, children }: { title: string; hint: string; childre
 
 /** Decision controls for one reply that needs the host's call. */
 export function ReviewActions({
-  adminKey,
   id,
   suggestedGuestId,
   repliedName,
+  guests,
 }: {
-  adminKey: string;
   id: number;
   suggestedGuestId: string | null;
   repliedName: string;
+  guests: Guest[];
 }) {
   const suggested = guests.find((g) => g.id === suggestedGuestId);
-  const common = { adminKey, id, guestNames };
+  const guestNames = Object.fromEntries(guests.map((g) => [g.id, g.name]));
+  const common = { id, guestNames };
 
   return (
     <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">

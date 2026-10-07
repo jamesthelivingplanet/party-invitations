@@ -1,22 +1,29 @@
 import type { ReactNode } from "react";
-import guests from "@/guests.json";
+import { requireAdminPage } from "@/lib/admin-auth";
 import { db, ensureSchema, type RsvpRow } from "@/lib/db";
+import type { Guest } from "@/lib/guests";
+import { eventStore, guestStore } from "@/lib/stores";
 import { ReviewActions, UndoButton } from "./controls";
+import { AdminShell } from "./shell";
 import { Badge, Confidence, Empty, List, PartySize, Section, StatCard, When, formatAbsolute } from "./ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Admin", robots: { index: false } };
 
-export default async function Admin(props: PageProps<"/admin">) {
-  const { key } = await props.searchParams;
-  if (!process.env.ADMIN_PASSWORD || key !== process.env.ADMIN_PASSWORD) {
-    return <main className="p-8">Not authorized.</main>;
-  }
+export default async function Admin() {
+  await requireAdminPage();
+
+  const [allGuests, event] = await Promise.all([
+    guestStore.list({ includeArchived: true }),
+    eventStore.get(),
+  ]);
+  const guests = allGuests.filter((g) => !g.archived);
+  const archivedIds = new Set(allGuests.filter((g) => g.archived).map((g) => g.id));
 
   await ensureSchema();
   const { rows } = await db.execute("SELECT * FROM rsvps ORDER BY id DESC");
   const rsvps = rows as unknown as RsvpRow[];
-  const nameOf = (id: string | null) => guests.find((g) => g.id === id)?.name ?? "—";
+  const nameOf = (id: string | null) => allGuests.find((g) => g.id === id)?.name ?? "—";
   const now = new Date();
 
   // Apply the host's decisions on top of the AI matches (oldest first, so the latest reply wins).
@@ -41,6 +48,7 @@ export default async function Admin(props: PageProps<"/admin">) {
       review.push(r);
       continue;
     }
+    if (archivedIds.has(eff.key)) continue; // archived guests don't count
     latest.set(eff.key, eff);
     replyCount.set(eff.key, (replyCount.get(eff.key) ?? 0) + 1);
   }
@@ -56,15 +64,13 @@ export default async function Admin(props: PageProps<"/admin">) {
   const repliedAs = (e: Eff) => (e.r.name.trim().toLowerCase() !== e.name.toLowerCase() ? e.r.name : null);
   const tagFor = (e: Eff) =>
     e.by === "new" ? "Added by you" : e.by === "assigned" ? "Confirmed by you" : null;
-  const undo = (e: Eff) => (e.by === "ai" ? null : <UndoButton adminKey={key} id={e.r.id} />);
+  const undo = (e: Eff) => (e.by === "ai" ? null : <UndoButton id={e.r.id} />);
 
   return (
-    <div className="min-h-full flex-1 bg-zinc-50 font-sans text-zinc-900">
-      <div aria-hidden className="h-1.5 bg-gradient-to-r from-red-600 via-orange-500 to-yellow-400" />
-      <main className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
+    <AdminShell current="replies">
         <header className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-red-600">RSVP dashboard</p>
-          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Alex&apos;s birthday party</h1>
+          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{event.name}</h1>
           <p className="text-sm text-zinc-600">
             {guests.length} invited · {rsvps.length} {rsvps.length === 1 ? "reply" : "replies"} received · as of{" "}
             {formatAbsolute(now)}
@@ -171,7 +177,7 @@ export default async function Admin(props: PageProps<"/admin">) {
           ) : (
             <ul className="grid gap-3 lg:grid-cols-2">
               {review.map((r) => (
-                <ReviewCard key={r.id} r={r} guess={nameOf(r.matched_guest_id)} now={now} adminKey={key} />
+                <ReviewCard key={r.id} r={r} guess={nameOf(r.matched_guest_id)} now={now} guests={guests} />
               ))}
             </ul>
           )}
@@ -189,7 +195,7 @@ export default async function Admin(props: PageProps<"/admin">) {
                     <div className="break-words font-semibold text-zinc-900">{r.name}</div>
                     <div className="break-words text-sm text-zinc-600">&ldquo;{r.relation}&rdquo;</div>
                   </div>
-                  <UndoButton adminKey={key} id={r.id} label="Bring back" />
+                  <UndoButton id={r.id} label="Bring back" />
                 </li>
               ))}
             </ul>
@@ -199,8 +205,7 @@ export default async function Admin(props: PageProps<"/admin">) {
         <footer className="border-t border-zinc-200 pt-4 text-xs text-zinc-500">
           Times are shown in UTC. If a guest replied more than once, their latest matched reply counts. Your decisions on this page override the AI.
         </footer>
-      </main>
-    </div>
+    </AdminShell>
   );
 }
 
@@ -249,7 +254,7 @@ function GuestRow({
   );
 }
 
-function ReviewCard({ r, guess, now, adminKey }: { r: RsvpRow; guess: string; now: Date; adminKey: string }) {
+function ReviewCard({ r, guess, now, guests }: { r: RsvpRow; guess: string; now: Date; guests: Guest[] }) {
   const isGuess = r.status === "review" && r.matched_guest_id;
   return (
     <li className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
@@ -290,7 +295,7 @@ function ReviewCard({ r, guess, now, adminKey }: { r: RsvpRow; guess: string; no
       )}
 
       <ReviewActions
-        adminKey={adminKey}
+        guests={guests}
         id={r.id}
         suggestedGuestId={isGuess ? r.matched_guest_id : null}
         repliedName={r.name}

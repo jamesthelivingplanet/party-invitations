@@ -1,5 +1,6 @@
 import { db, ensureSchema } from "@/lib/db";
 import { matchGuest, type MatchResult } from "@/lib/match";
+import { guestStore } from "@/lib/stores";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   // If Jev is unreachable, still save the RSVP so nothing is lost.
   let match: MatchResult = { guestId: null, confidence: 0, status: "review" };
   try {
-    match = await matchGuest({ name, relation });
+    match = await matchGuest({ name, relation }, await guestStore.list());
   } catch (err) {
     console.error("Jev match failed", err);
   }

@@ -1,5 +1,5 @@
 import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
-import guests from "@/guests.json";
+import type { Guest } from "./guests";
 
 export const CONFIRM_THRESHOLD = 0.85;
 export const REVIEW_THRESHOLD = 0.4;
@@ -15,10 +15,10 @@ export type MatchResult = {
 const client = new TypeSafeClient();
 
 /** Ask Jev which person on the guest list an RSVP most likely refers to. */
-export async function matchGuest(input: {
-  name: string;
-  relation: string;
-}): Promise<MatchResult> {
+export async function matchGuest(
+  input: { name: string; relation: string },
+  guests: Pick<Guest, "id" | "name" | "notes">[],
+): Promise<MatchResult> {
   const options: Record<string, string | null> = {};
   for (const g of guests) options[g.id] = `${g.name} (${g.notes})`;
   options.none = "Nobody on the list; this person was not invited";

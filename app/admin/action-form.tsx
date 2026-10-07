@@ -41,7 +41,6 @@ function SubmitButton({ variant }: { variant: Variant }) {
  * "are you sure?" and only submits the server action once confirmed.
  */
 export function ActionForm({
-  adminKey,
   id,
   intent,
   label,
@@ -50,7 +49,6 @@ export function ActionForm({
   className = "",
   children,
 }: {
-  adminKey: string;
   id: number;
   intent: Intent;
   label: string;
@@ -70,7 +68,6 @@ export function ActionForm({
 
   return (
     <form ref={ref} action={decide} className={className}>
-      <input type="hidden" name="key" value={adminKey} />
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="intent" value={intent} />
       {children}

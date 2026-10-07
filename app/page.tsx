@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
+import { replyDeadlineDate } from "@/lib/event";
 import { formatDate, party } from "@/lib/party";
+import { eventStore } from "@/lib/stores";
 import RacingCar from "./racing-car";
 import LangSync from "./lang-sync";
 import RsvpForm from "./rsvp-form";
@@ -14,12 +16,14 @@ export default async function Home(props: PageProps<"/">) {
   const locale = resolveLocale(lang, (await headers()).get("accept-language"));
   const t = dictionaries[locale];
   const other = locale === "en" ? "es" : "en";
+  const event = await eventStore.get();
+  const deadline = replyDeadlineDate(event);
 
   const rows: [string, string][] = [
-    [t.date, formatDate(party.dateISO, locale)],
-    [t.time, party.time ?? t.tbd],
-    [t.where, party.place ?? t.tbd],
-    [t.rsvpBy, party.rsvpByISO ? formatDate(party.rsvpByISO, locale) : t.tbd],
+    [t.date, formatDate(event.date, locale)],
+    [t.time, event.time ?? t.tbd],
+    [t.where, event.place ?? t.tbd],
+    [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
 
   return (

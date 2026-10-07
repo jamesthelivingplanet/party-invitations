@@ -1,18 +1,9 @@
 "use server";
 
-import { timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import guests from "@/guests.json";
+import { requireAdminAction } from "@/lib/admin-auth";
 import { db, ensureSchema } from "@/lib/db";
-
-// Server Actions are reachable by direct POST, so authorize inside the action itself.
-function authorized(key: FormDataEntryValue | null) {
-  const pw = process.env.ADMIN_PASSWORD;
-  if (!pw || typeof key !== "string") return false;
-  const a = Buffer.from(key);
-  const b = Buffer.from(pw);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+import { guestStore } from "@/lib/stores";
 
 /**
  * The host's decision on a reply.
@@ -22,7 +13,7 @@ function authorized(key: FormDataEntryValue | null) {
  *  undo    – clear any earlier decision
  */
 export async function decide(formData: FormData) {
-  if (!authorized(formData.get("key"))) throw new Error("Unauthorized");
+  await requireAdminAction();
 
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id < 1) throw new Error("Bad reply id");
@@ -32,7 +23,7 @@ export async function decide(formData: FormData) {
 
   if (intent === "assign") {
     const guestId = String(formData.get("guest_id") ?? "");
-    if (!guests.some((g) => g.id === guestId)) throw new Error("Unknown guest");
+    if (!(await guestStore.list()).some((g) => g.id === guestId)) throw new Error("Unknown guest");
     await db.execute({
       sql: "UPDATE rsvps SET decision='assigned', assigned_guest_id=?, new_guest_name=NULL WHERE id=?",
       args: [guestId, id],
