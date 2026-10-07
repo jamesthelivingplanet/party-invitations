@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { db, ensureSchema, type RsvpRow } from "@/lib/db";
 import type { Guest } from "@/lib/guests";
-import { eventStore, guestStore } from "@/lib/stores";
+import type { Entry, Reply } from "@/lib/replies";
+import { eventStore, replyStore } from "@/lib/stores";
 import { ReviewActions, UndoButton } from "./controls";
 import { AdminShell } from "./shell";
 import { Badge, Confidence, Empty, List, PartySize, Section, StatCard, When, formatAbsolute } from "./ui";
@@ -13,58 +13,14 @@ export const metadata = { title: "Admin", robots: { index: false } };
 export default async function Admin() {
   await requireAdminPage();
 
-  const [allGuests, event] = await Promise.all([
-    guestStore.list({ includeArchived: true }),
-    eventStore.get(),
-  ]);
-  const guests = allGuests.filter((g) => !g.archived);
-  const archivedIds = new Set(allGuests.filter((g) => g.archived).map((g) => g.id));
-
-  await ensureSchema();
-  const { rows } = await db.execute("SELECT * FROM rsvps ORDER BY id DESC");
-  const rsvps = rows as unknown as RsvpRow[];
-  const nameOf = (id: string | null) => allGuests.find((g) => g.id === id)?.name ?? "—";
+  const [summary, event] = await Promise.all([replyStore.summary(), eventStore.get()]);
+  const { guests, coming, declined, noReply, review, dismissed, headcount, totalReplies } = summary;
   const now = new Date();
 
-  // Apply the host's decisions on top of the AI matches (oldest first, so the latest reply wins).
-  type Eff = { r: RsvpRow; key: string; name: string; by: "ai" | "assigned" | "new" };
-  const latest = new Map<string, Eff>();
-  const replyCount = new Map<string, number>();
-  const review: RsvpRow[] = [];
-  const dismissed: RsvpRow[] = [];
-  for (const r of [...rsvps].reverse()) {
-    let eff: Eff | null = null;
-    if (r.decision === "dismissed") {
-      dismissed.push(r);
-      continue;
-    } else if (r.decision === "assigned" && r.assigned_guest_id) {
-      eff = { r, key: r.assigned_guest_id, name: nameOf(r.assigned_guest_id), by: "assigned" };
-    } else if (r.decision === "new_guest" && r.new_guest_name) {
-      eff = { r, key: `new:${r.id}`, name: r.new_guest_name, by: "new" };
-    } else if (r.status === "matched" && r.matched_guest_id) {
-      eff = { r, key: r.matched_guest_id, name: nameOf(r.matched_guest_id), by: "ai" };
-    }
-    if (!eff) {
-      review.push(r);
-      continue;
-    }
-    if (archivedIds.has(eff.key)) continue; // archived guests don't count
-    latest.set(eff.key, eff);
-    replyCount.set(eff.key, (replyCount.get(eff.key) ?? 0) + 1);
-  }
-
-  const byNewest = (a: { r: RsvpRow }, b: { r: RsvpRow }) => b.r.id - a.r.id;
-  review.sort((a, b) => b.id - a.id);
-  dismissed.sort((a, b) => b.id - a.id);
-  const coming = [...latest.values()].filter((e) => e.r.attending).sort(byNewest);
-  const declined = [...latest.values()].filter((e) => !e.r.attending).sort(byNewest);
-  const headcount = coming.reduce((n, e) => n + e.r.party_size, 0);
-  const noReply = guests.filter((g) => !latest.has(g.id));
-
-  const repliedAs = (e: Eff) => (e.r.name.trim().toLowerCase() !== e.name.toLowerCase() ? e.r.name : null);
-  const tagFor = (e: Eff) =>
+  const repliedAs = (e: Entry) => (e.reply.name.trim().toLowerCase() !== e.name.toLowerCase() ? e.reply.name : null);
+  const tagFor = (e: Entry) =>
     e.by === "new" ? "Added by you" : e.by === "assigned" ? "Confirmed by you" : null;
-  const undo = (e: Eff) => (e.by === "ai" ? null : <UndoButton id={e.r.id} />);
+  const undo = (e: Entry) => (e.by === "jev" ? null : <UndoButton id={e.reply.id} />);
 
   return (
     <AdminShell current="replies">
@@ -72,7 +28,7 @@ export default async function Admin() {
           <p className="text-xs font-semibold uppercase tracking-widest text-red-600">RSVP dashboard</p>
           <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{event.name}</h1>
           <p className="text-sm text-zinc-600">
-            {guests.length} invited · {rsvps.length} {rsvps.length === 1 ? "reply" : "replies"} received · as of{" "}
+            {guests.length} invited · {totalReplies} {totalReplies === 1 ? "reply" : "replies"} received · as of{" "}
             {formatAbsolute(now)}
           </p>
         </header>
@@ -107,14 +63,14 @@ export default async function Admin() {
                 <List>
                   {coming.map((e) => (
                     <GuestRow
-                      key={e.r.id}
+                      key={e.reply.id}
                       name={e.name}
                       repliedAs={repliedAs(e)}
-                      updated={(replyCount.get(e.key) ?? 0) > 1}
+                      updated={e.replyCount > 1}
                       tag={tagFor(e)}
                       badge={<Badge tone="green">Coming</Badge>}
-                      size={e.r.party_size}
-                      createdAt={e.r.created_at}
+                      size={e.reply.partySize}
+                      createdAt={e.reply.createdAt}
                       now={now}
                       action={undo(e)}
                     />
@@ -149,13 +105,13 @@ export default async function Admin() {
                 <List>
                   {declined.map((e) => (
                     <GuestRow
-                      key={e.r.id}
+                      key={e.reply.id}
                       name={e.name}
                       repliedAs={repliedAs(e)}
-                      updated={(replyCount.get(e.key) ?? 0) > 1}
+                      updated={e.replyCount > 1}
                       tag={tagFor(e)}
                       badge={<Badge tone="gray">Declined</Badge>}
-                      createdAt={e.r.created_at}
+                      createdAt={e.reply.createdAt}
                       now={now}
                       action={undo(e)}
                     />
@@ -177,7 +133,7 @@ export default async function Admin() {
           ) : (
             <ul className="grid gap-3 lg:grid-cols-2">
               {review.map((r) => (
-                <ReviewCard key={r.id} r={r} guess={nameOf(r.matched_guest_id)} now={now} guests={guests} />
+                <ReviewCard key={r.id} r={r} now={now} guests={guests} />
               ))}
             </ul>
           )}
@@ -254,17 +210,17 @@ function GuestRow({
   );
 }
 
-function ReviewCard({ r, guess, now, guests }: { r: RsvpRow; guess: string; now: Date; guests: Guest[] }) {
-  const isGuess = r.status === "review" && r.matched_guest_id;
+function ReviewCard({ r, now, guests }: { r: Reply; now: Date; guests: Guest[] }) {
+  const isGuess = r.suggestedGuestId;
   return (
     <li className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="break-words font-semibold text-zinc-900">{r.name}</div>
-          <When createdAt={r.created_at} now={now} />
+          <When createdAt={r.createdAt} now={now} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {r.attending ? <PartySize n={r.party_size} /> : null}
+          {r.attending ? <PartySize n={r.partySize} /> : null}
           {r.attending ? <Badge tone="green">Says coming</Badge> : <Badge tone="gray">Says not coming</Badge>}
         </div>
       </div>
@@ -282,7 +238,7 @@ function ReviewCard({ r, guess, now, guests }: { r: RsvpRow; guess: string; now:
               <span className="text-xs font-medium text-amber-900">AI suggestion</span>
             </div>
             <div className="mt-1 text-sm text-zinc-800">
-              Possibly <span className="font-semibold text-zinc-900">{guess}</span>
+              Possibly <span className="font-semibold text-zinc-900">{r.suggestedGuestName}</span>
             </div>
           </div>
           <Confidence value={r.confidence} />
@@ -297,7 +253,7 @@ function ReviewCard({ r, guess, now, guests }: { r: RsvpRow; guess: string; now:
       <ReviewActions
         guests={guests}
         id={r.id}
-        suggestedGuestId={isGuess ? r.matched_guest_id : null}
+        suggestedGuestId={r.suggestedGuestId}
         repliedName={r.name}
       />
     </li>

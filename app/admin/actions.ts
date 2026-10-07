@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
-import { db, ensureSchema } from "@/lib/db";
-import { guestStore } from "@/lib/stores";
+import { replyStore } from "@/lib/stores";
 
 /**
  * The host's decision on a reply.
@@ -19,35 +18,11 @@ export async function decide(formData: FormData) {
   if (!Number.isInteger(id) || id < 1) throw new Error("Bad reply id");
   const intent = formData.get("intent");
 
-  await ensureSchema();
-
-  if (intent === "assign") {
-    const guestId = String(formData.get("guest_id") ?? "");
-    if (!(await guestStore.list()).some((g) => g.id === guestId)) throw new Error("Unknown guest");
-    await db.execute({
-      sql: "UPDATE rsvps SET decision='assigned', assigned_guest_id=?, new_guest_name=NULL WHERE id=?",
-      args: [guestId, id],
-    });
-  } else if (intent === "new") {
-    const name = String(formData.get("new_name") ?? "").trim().slice(0, 100);
-    if (!name) throw new Error("Name required");
-    await db.execute({
-      sql: "UPDATE rsvps SET decision='new_guest', new_guest_name=?, assigned_guest_id=NULL WHERE id=?",
-      args: [name, id],
-    });
-  } else if (intent === "dismiss") {
-    await db.execute({
-      sql: "UPDATE rsvps SET decision='dismissed', assigned_guest_id=NULL, new_guest_name=NULL WHERE id=?",
-      args: [id],
-    });
-  } else if (intent === "undo") {
-    await db.execute({
-      sql: "UPDATE rsvps SET decision=NULL, assigned_guest_id=NULL, new_guest_name=NULL WHERE id=?",
-      args: [id],
-    });
-  } else {
-    throw new Error("Unknown action");
-  }
+  if (intent === "assign") await replyStore.assignToGuest(id, String(formData.get("guest_id") ?? ""));
+  else if (intent === "new") await replyStore.welcomeAs(id, String(formData.get("new_name") ?? ""));
+  else if (intent === "dismiss") await replyStore.markNotInvited(id);
+  else if (intent === "undo") await replyStore.undo(id);
+  else throw new Error("Unknown action");
 
   revalidatePath("/admin");
 }

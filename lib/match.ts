@@ -1,24 +1,16 @@
 import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
 import type { Guest } from "./guests";
 
-export const CONFIRM_THRESHOLD = 0.85;
-export const REVIEW_THRESHOLD = 0.4;
-/** If the model says "nobody" but a real guest still has at least this probability, flag it for review. */
-export const SOFT_THRESHOLD = 0.15;
-
-export type MatchResult = {
-  guestId: string | null;
-  confidence: number;
-  status: "matched" | "review" | "unmatched";
-};
+/** What Jev said: the option it picked ("none" for nobody) and its probability for each option. */
+export type JevAnswer = { picked: string; probabilities: Record<string, number> };
 
 const client = new TypeSafeClient();
 
 /** Ask Jev which person on the guest list an RSVP most likely refers to. */
-export async function matchGuest(
+export async function askJev(
   input: { name: string; relation: string },
   guests: Pick<Guest, "id" | "name" | "notes">[],
-): Promise<MatchResult> {
+): Promise<JevAnswer> {
   const options: Record<string, string | null> = {};
   for (const g of guests) options[g.id] = `${g.name} (${g.notes})`;
   options.none = "Nobody on the list; this person was not invited";
@@ -41,26 +33,9 @@ export async function matchGuest(
 
   const answer = response.answers.guest;
   const picked = answer.choice as string;
-  const probs =
-    (answer as { probabilities?: Record<string, number> }).probabilities ?? {};
-  const confidence = Number(
-    probs[picked] ?? (answer as { confidence?: number }).confidence ?? 0,
-  );
-
-  if (picked === "none") {
-    // The model thinks this is nobody on the list, but a plausible runner-up
-    // is worth the host's attention instead of a flat "unmatched".
-    const [bestId, bestP] =
-      Object.entries(probs)
-        .filter(([id]) => id !== "none")
-        .sort((a, b) => b[1] - a[1])[0] ?? [];
-    if (bestId && bestP >= SOFT_THRESHOLD)
-      return { guestId: bestId, confidence: bestP, status: "review" };
-    return { guestId: null, confidence, status: "unmatched" };
-  }
-  if (confidence >= CONFIRM_THRESHOLD)
-    return { guestId: picked, confidence, status: "matched" };
-  if (confidence >= REVIEW_THRESHOLD)
-    return { guestId: picked, confidence, status: "review" };
-  return { guestId: null, confidence, status: "unmatched" };
+  const probabilities = {
+    ...((answer as { probabilities?: Record<string, number> }).probabilities ?? {}),
+  };
+  probabilities[picked] ??= Number((answer as { confidence?: number }).confidence ?? 0);
+  return { picked, probabilities };
 }

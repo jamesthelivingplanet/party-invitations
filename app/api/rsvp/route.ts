@@ -1,6 +1,4 @@
-import { db, ensureSchema } from "@/lib/db";
-import { matchGuest, type MatchResult } from "@/lib/match";
-import { guestStore } from "@/lib/stores";
+import { replyStore } from "@/lib/stores";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -13,20 +11,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_fields" }, { status: 400 });
   }
 
-  // If Jev is unreachable, still save the RSVP so nothing is lost.
-  let match: MatchResult = { guestId: null, confidence: 0, status: "review" };
-  try {
-    match = await matchGuest({ name, relation }, await guestStore.list());
-  } catch (err) {
-    console.error("Jev match failed", err);
-  }
-
-  await ensureSchema();
-  await db.execute({
-    sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    args: [name, relation, attending ? 1 : 0, partySize, match.guestId, match.confidence, match.status],
-  });
+  await replyStore.submitShared({ name, relation, attending, partySize });
 
   // Deliberately generic: never reveal who is on the guest list.
   return Response.json({ ok: true, attending });
