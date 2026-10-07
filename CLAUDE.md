@@ -13,3 +13,25 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Deploying and testing
+
+### Where it runs
+- **Hosting:** Vercel project `party-invitations` (team `example-team`), production at https://party-invitations.vercel.app. There is no git remote, so nothing deploys automatically.
+- **Database:** Turso (libSQL) database `party-invitations`. Locally, leave the Turso variables unset and the app uses a throwaway SQLite file, `local.db` (git-ignored).
+- **Settings:** the variable names are in `.env.example`: `TYPESAFE_API_KEY` (Jev matching), `ADMIN_PASSWORD` (admin login), `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. Real values live in `.env.local` locally and in Vercel's Production environment. Never commit or print them.
+- **Admin:** `/admin` asks for `ADMIN_PASSWORD` and then keeps a session cookie.
+
+### Everyday commands
+- `npm run dev` runs the app locally.
+- `npm test` runs the Vitest suite. Tests use a real in-memory database; only the Jev model and the clock are faked.
+- `npx tsc --noEmit` typechecks, `npm run lint` lints, and `npm run build` builds.
+- `vercel deploy --prod --yes` deploys to production. If it prints `"status": "error"` right away, run it again and check `vercel ls` for the real status.
+- The Turso CLI is at `~/.turso/turso` (for example `~/.turso/turso db shell party-invitations "select * from guests"`).
+
+### Working rules learned the hard way
+- Database tables create and migrate themselves on first use, so a deploy upgrades the live database. Look at production data before deploying a schema change.
+- After the dev server, a build or a test run, delete any `local.db*` files and any screenshots or scripts you made in the scratchpad.
+- Stop the dev server by its PID. Do not use `pkill -f`; it can kill your own shell.
+- Admin screens, page layout and the Share button are checked by hand in a real browser (phone width as well as desktop), not by unit tests.
+- Use the real guest list and event details only in the database. `guests.json` is just the seed for the very first, placeholder guest list.
