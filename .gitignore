@@ -43,3 +43,6 @@ local.db*
 
 # keep the example env file (names only, no values)
 !.env.example
+e2e.db*
+test-results/
+playwright-report/

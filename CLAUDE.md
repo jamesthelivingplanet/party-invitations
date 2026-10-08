@@ -25,6 +25,7 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 ### Everyday commands
 - `npm run dev` runs the app locally.
 - `npm test` runs the Vitest suite. Tests use a real in-memory database; only the Jev model and the clock are faked.
+- `CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e` runs the Playwright browser tests (phone width) on a throwaway `e2e.db` with a stub in place of Jev. It starts its own server on port 3100.
 - `npx tsc --noEmit` typechecks, `npm run lint` lints, and `npm run build` builds.
 - `vercel deploy --prod --yes` deploys to production. If it prints `"status": "error"` right away, run it again and check `vercel ls` for the real status.
 - The Turso CLI is at `~/.turso/turso` (for example `~/.turso/turso db shell party-invitations "select * from guests"`).
