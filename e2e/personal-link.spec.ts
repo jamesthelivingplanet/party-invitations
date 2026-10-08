@@ -50,6 +50,37 @@ test("an unknown or malformed Personal link shows a friendly message", async ({ 
   await expect(page.getByRole("button", { name: /send/i })).toHaveCount(0);
 });
 
+test("regenerating a link retires the old one, and archiving shows 'no longer available' until restored", async ({ page }) => {
+  const oldPath = await addGuest(page, "Rita Regenerate", "es");
+  await page.goto(oldPath);
+  await page.getByRole("button", { name: "¡Sí!" }).click();
+  await page.getByRole("button", { name: "Enviar respuesta" }).click();
+  await expect(page.getByText("¡Ya estás en la parrilla de salida!")).toBeVisible();
+
+  await page.goto("/admin/guests");
+  const row = () => page.locator("li", { hasText: "Rita Regenerate" }).first();
+  await row().getByRole("button", { name: "Regenerate link" }).click();
+  await expect(row().locator("[data-personal-path]")).not.toHaveAttribute("data-personal-path", oldPath);
+  const newPath = (await row().locator("[data-personal-path]").getAttribute("data-personal-path"))!;
+
+  await page.goto(`${oldPath}?lang=en`);
+  await expect(page.getByRole("heading", { name: "We can't find this invitation" })).toBeVisible();
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Rita Regenerate" }).first()).toBeVisible(); // reply kept
+
+  await page.goto("/admin/guests");
+  await row().getByRole("button", { name: "Archive" }).click();
+  await page.goto(newPath);
+  await expect(page.getByRole("heading", { name: "Esta invitación ya no está disponible" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /enviar/i })).toHaveCount(0);
+
+  await page.goto("/admin/guests");
+  await page.getByText(/Archived guests/).click();
+  await page.locator("li", { hasText: "Rita Regenerate" }).getByRole("button", { name: "Restore" }).click();
+  await page.goto(newPath);
+  await expect(page.getByRole("heading", { name: "¡Hola Rita Regenerate!" })).toBeVisible();
+});
+
 test("a Guest reopens their link, sees their answer, and changes it", async ({ page }) => {
   const path = await addGuest(page, "Carla Changer", "en");
   await page.goto(path);

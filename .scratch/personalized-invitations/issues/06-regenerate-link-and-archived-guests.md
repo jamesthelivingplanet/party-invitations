@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (A Guest can reply through their Personal link)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -15,3 +15,7 @@
 - [ ] Checked in a browser.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-06. regeneratePersonalLink; no_longer_available outcome (HTTP 410); playwright config reads E2E_PORT/E2E_DB.

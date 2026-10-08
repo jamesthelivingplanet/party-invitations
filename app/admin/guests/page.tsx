@@ -4,7 +4,7 @@ import { guestStore } from "@/lib/stores";
 import { Badge, Empty, List, Section } from "../ui";
 import { AdminShell } from "../shell";
 import { CopyLinkButton } from "./copy-link-button";
-import { addGuest, archiveGuest, restoreGuest, updateGuest } from "./actions";
+import { addGuest, archiveGuest, regenerateLink, restoreGuest, updateGuest } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Guests", robots: { index: false } };
@@ -116,6 +116,12 @@ function GuestRow({ guest }: { guest: Guest }) {
         </div>
         <div className="flex shrink-0 flex-col items-end">
         <CopyLinkButton code={guest.personalLinkCode} />
+        <form action={regenerateLink}>
+          <input type="hidden" name="id" value={guest.id} />
+          <button className="rounded-md px-1.5 py-1 text-sm font-semibold text-zinc-500 hover:text-zinc-900 hover:underline">
+            Regenerate link
+          </button>
+        </form>
         <form action={archiveGuest}>
           <input type="hidden" name="id" value={guest.id} />
           <button className="rounded-md px-1.5 py-1 text-sm font-semibold text-zinc-500 hover:text-rose-700 hover:underline">

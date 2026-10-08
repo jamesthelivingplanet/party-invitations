@@ -278,18 +278,39 @@ test("a Personal link for an archived Guest accepts no Reply", async () => {
   const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
   await guests.archive(sarah.id);
 
-  expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 })).toBe("unknown_link");
+  expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 })).toBe("no_longer_available");
   expect((await replies.summary()).totalReplies).toBe(0);
+
+  await guests.restore(sarah.id);
+  expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 })).toBe("recorded");
 });
 
-test("a Personal link finds its Guest, and only while the Guest is on the list", async () => {
+test("a regenerated Personal link makes the old code useless, records nothing for it, and keeps the Reply", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2 });
+
+  const fresh = await guests.regeneratePersonalLink(sarah.id);
+
+  expect(fresh).not.toBe(sarah.personalLinkCode);
+  expect(fresh).toMatch(/^[A-Za-z0-9_-]{22,}$/);
+  expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: false, partySize: 1 })).toBe("unknown_link");
+  expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toBeNull();
+  expect(await replies.guestForPersonalLink(fresh)).toMatchObject({ name: "Sarah Johnson" });
+  const summary = await replies.summary();
+  expect(summary.totalReplies).toBe(1);
+  expect(summary.coming.map((e) => [e.name, e.reply.partySize])).toEqual([["Sarah Johnson", 2]]);
+  expect(await replies.submitPersonal(fresh, { attending: true, partySize: 3 })).toBe("recorded");
+});
+
+test("a Personal link finds its Guest, and says so when the Guest is archived", async () => {
   const { guests, replies } = await setup();
   const sarah = await guests.add({ name: "Sarah Johnson", language: "es", notes: "" });
 
   expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toMatchObject({ name: "Sarah Johnson", language: "es" });
   expect(await replies.guestForPersonalLink("nope")).toBeNull();
   await guests.archive(sarah.id);
-  expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toBeNull();
+  expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toMatchObject({ name: "Sarah Johnson", archived: true });
 });
 
 test("reopening a Personal link shows the Guest's current Reply, or nothing before they reply", async () => {

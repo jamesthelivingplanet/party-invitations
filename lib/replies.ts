@@ -120,17 +120,18 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
       return match.status === "matched" ? "confirmed" : match.status === "review" ? "review" : "no_match";
     },
 
-    /** The Guest a Personal link was made for, or null for an unknown code or an archived Guest. */
+    /** The Guest a Personal link was made for (archived Guests included, see `archived`), or null for an unknown code. */
     async guestForPersonalLink(code: string): Promise<Guest | null> {
       if (!code) return null;
-      const all = await deps.guests.list();
+      const all = await deps.guests.list({ includeArchived: true });
       return all.find((g) => g.personalLinkCode === code) ?? null;
     },
 
     /** A Reply through a Personal link: the code says who is replying, so no Match is needed. */
-    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link"> {
+    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link" | "no_longer_available"> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return "unknown_link";
+      if (guest.archived) return "no_longer_available";
       await ensure();
       await db.execute({
         sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)
