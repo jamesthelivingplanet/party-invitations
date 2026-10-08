@@ -293,7 +293,7 @@ test("a Personal link for an archived Guest accepts no Reply", async () => {
 test("a regenerated Personal link makes the old code useless, records nothing for it, and keeps the Reply", async () => {
   const { guests, replies } = await setup();
   const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
-  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2 });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2, companions: [{ name: "Tom", kind: "adult" }] });
 
   const fresh = await guests.regeneratePersonalLink(sarah.id);
 
@@ -305,7 +305,7 @@ test("a regenerated Personal link makes the old code useless, records nothing fo
   const summary = await replies.summary();
   expect(summary.totalReplies).toBe(1);
   expect(summary.coming.map((e) => [e.name, e.reply.partySize])).toEqual([["Sarah Johnson", 2]]);
-  expect(await replies.submitPersonal(fresh, { attending: true, partySize: 3 })).toBe("recorded");
+  expect(await replies.submitPersonal(fresh, { attending: true, ...party(3) })).toBe("recorded");
 });
 
 test("a Personal link finds its Guest, and says so when the Guest is archived", async () => {

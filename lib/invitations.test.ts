@@ -161,7 +161,7 @@ test("a Guest who has replied shows Replied, whether or not the Invitation was m
   const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
   await invitations.setSent(sarah.id, true);
 
-  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2 });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2, companions: [{ name: "Tom", kind: "adult" }] });
   await replies.submitPersonal(pedro.personalLinkCode, { attending: false, partySize: 1 });
 
   expect((await invitations.overview()).map((r) => r.status)).toEqual(["replied", "replied"]);
