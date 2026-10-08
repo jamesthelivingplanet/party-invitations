@@ -4,7 +4,7 @@
 
 **Blocked by:** 11 (Shared-link outcomes and Requests)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -15,3 +15,7 @@
 - [ ] Tests at the Replies seam cover accept, decline and the headcount effect.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-12. acceptRequest/declineRequest; review "welcome" became Accept request (ADR 0003).
