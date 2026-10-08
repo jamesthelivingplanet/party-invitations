@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CompanionFields, readParty } from "./companion-fields";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
 export default function RsvpForm({ locale }: { locale: Locale }) {
@@ -20,14 +21,24 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
       body: JSON.stringify({
         name: form.get("name"),
         relation: form.get("relation"),
-        partySize: Number(form.get("partySize")),
+        ...readParty(form),
         attending,
       }),
     });
     if (res.ok) setState("done");
     else {
       const code = (await res.json().catch(() => null))?.error;
-      setMessage(code === "missing_fields" ? t.errMissing : code === "closed" ? t.repliesClosed : t.errGeneric);
+      setMessage(
+        code === "missing_fields"
+          ? t.errMissing
+          : code === "closed"
+            ? t.repliesClosed
+            : code === "companion_count"
+            ? t.errCompanionCount
+            : code === "companion_incomplete"
+              ? t.errCompanionIncomplete
+              : t.errGeneric,
+      );
       setState("error");
     }
   }
@@ -87,12 +98,7 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
           ))}
         </div>
       </div>
-      {attending && (
-        <label className="block font-bold">
-          {t.howMany}
-          <input name="partySize" type="number" min={1} max={10} defaultValue={1} className={input} />
-        </label>
-      )}
+      {attending && <CompanionFields locale={locale} />}
       {state === "error" && <p className="text-sm font-semibold text-red-700">{message}</p>}
       <button
         disabled={attending === null || state === "sending"}

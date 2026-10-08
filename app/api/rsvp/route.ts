@@ -1,3 +1,4 @@
+import { readCompanions } from "@/lib/companions-input";
 import { replyStore } from "@/lib/stores";
 
 export async function POST(request: Request) {
@@ -11,8 +12,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_fields" }, { status: 400 });
   }
 
-  const outcome = await replyStore.submitShared({ name, relation, attending, partySize });
+  const outcome = await replyStore.submitShared({ name, relation, attending, partySize, companions: readCompanions(body) });
   if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
+  if (outcome === "companion_count" || outcome === "companion_incomplete") {
+    return Response.json({ error: outcome }, { status: 400 });
+  }
 
   // Deliberately generic: never reveal who is on the guest list.
   return Response.json({ ok: true, attending });

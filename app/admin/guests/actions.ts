@@ -48,3 +48,7 @@ export async function archiveGuest(data: FormData) {
 export async function restoreGuest(data: FormData) {
   await run(() => guestStore.restore(text(data, "id")));
 }
+
+export async function regenerateLink(data: FormData) {
+  await run(() => guestStore.regeneratePersonalLink(text(data, "id")));
+}

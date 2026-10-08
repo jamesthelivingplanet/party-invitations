@@ -167,3 +167,16 @@ test("guests who were on the list before Personal links existed get a code witho
   // The code stays the same on the next visit.
   expect((await createGuestStore(db).list())[0].personalLinkCode).toBe(list[0].personalLinkCode);
 });
+
+test("regenerating a Personal link gives a new code and keeps the rest of the Guest", async () => {
+  const guests = createGuestStore(testDb());
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "es", notes: "n" });
+  const dave = await guests.add({ name: "Dave Example", language: "en", notes: "" });
+
+  const fresh = await guests.regeneratePersonalLink(sarah.id);
+
+  const list = await guests.list();
+  expect(list[0]).toMatchObject({ name: "Sarah Johnson", language: "es", notes: "n", personalLinkCode: fresh });
+  expect(fresh).not.toBe(sarah.personalLinkCode);
+  expect(list[1].personalLinkCode).toBe(dave.personalLinkCode);
+});

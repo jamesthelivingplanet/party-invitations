@@ -15,9 +15,32 @@ export const REVIEW_THRESHOLD = 0.4;
 /** If Jev says "nobody" but a real guest still has at least this probability, flag it for review. */
 export const SOFT_THRESHOLD = 0.15;
 
-export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number };
-export type PersonalReply = { attending: boolean; partySize: number };
-export type SubmitOutcome = "confirmed" | "review" | "no_match" | "closed";
+export type Companion = { name: string; kind: "adult" | "child" };
+type CompanionInput = { companions?: Companion[] };
+export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number } & CompanionInput;
+export type PersonalReply = { attending: boolean; partySize: number } & CompanionInput;
+export type CompanionProblem = "companion_count" | "companion_incomplete";
+export type SubmitOutcome = "confirmed" | "review" | "no_match" | "closed" | CompanionProblem;
+export type CurrentReply = { attending: boolean; partySize: number; companions: Companion[] };
+
+/**
+ * A Reply that says coming with Party size n needs exactly n-1 named Companions, each adult or child.
+ * A Reply that says not coming takes none (anything sent is dropped, and Party size is 1).
+ */
+function normalizeParty(r: { attending: boolean; partySize: number; companions?: Companion[] }):
+  | { ok: true; partySize: number; companions: Companion[] }
+  | { ok: false; problem: CompanionProblem } {
+  if (!r.attending) return { ok: true, partySize: 1, companions: [] };
+  const given = r.companions ?? [];
+  if (given.length !== r.partySize - 1) return { ok: false, problem: "companion_count" };
+  const companions: Companion[] = [];
+  for (const c of given) {
+    const name = typeof c?.name === "string" ? c.name.trim().slice(0, 100) : "";
+    if (!name || (c.kind !== "adult" && c.kind !== "child")) return { ok: false, problem: "companion_incomplete" };
+    companions.push({ name, kind: c.kind });
+  }
+  return { ok: true, partySize: r.partySize, companions };
+}
 
 export type Reply = {
   id: number;
@@ -26,6 +49,7 @@ export type Reply = {
   relation: string;
   attending: boolean;
   partySize: number;
+  companions: Companion[];
   confidence: number | null;
   suggestedGuestId: string | null;
   suggestedGuestName: string;
@@ -48,6 +72,9 @@ export type Summary = {
   review: Reply[];
   dismissed: Reply[];
   headcount: number;
+  /** Of the headcount: Companions marked child are children; everyone else (including older Replies) is an adult. */
+  adults: number;
+  children: number;
   totalReplies: number;
 };
 
@@ -58,6 +85,7 @@ type Row = {
   relation: string;
   attending: number;
   party_size: number;
+  companions: string | null;
   matched_guest_id: string | null;
   confidence: number | null;
   status: "matched" | "review" | "unmatched";
@@ -67,6 +95,15 @@ type Row = {
 };
 
 type Guests = { list(opts?: { includeArchived?: boolean }): Promise<Guest[]> };
+
+function parseCompanions(json: string | null): Companion[] {
+  try {
+    const list = json ? JSON.parse(json) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
 
 function decide(answer: JevAnswer): { guestId: string | null; confidence: number; status: Row["status"] } {
   const { picked, probabilities: probs } = answer;
@@ -113,6 +150,8 @@ export function createReplyStore(
     /** A reply sent through the Shared link: Jev tries to match it to a guest. */
     async submitShared(reply: SharedReply): Promise<SubmitOutcome> {
       if (!(await this.repliesOpen())) return "closed";
+      const party = normalizeParty(reply);
+      if (!party.ok) return party.problem;
       let match: ReturnType<typeof decide> = { guestId: null, confidence: 0, status: "review" };
       try {
         match = decide(await deps.jev(reply, await deps.guests.list()));
@@ -122,13 +161,14 @@ export function createReplyStore(
       }
       await ensure();
       await db.execute({
-        sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           reply.name,
           reply.relation,
           reply.attending ? 1 : 0,
-          reply.partySize,
+          party.partySize,
+          JSON.stringify(party.companions),
           match.guestId,
           match.confidence,
           match.status,
@@ -137,34 +177,42 @@ export function createReplyStore(
       return match.status === "matched" ? "confirmed" : match.status === "review" ? "review" : "no_match";
     },
 
-    /** The Guest a Personal link was made for, or null for an unknown code or an archived Guest. */
+    /** The Guest a Personal link was made for (archived Guests included, see `archived`), or null for an unknown code. */
     async guestForPersonalLink(code: string): Promise<Guest | null> {
       if (!code) return null;
-      const all = await deps.guests.list();
+      const all = await deps.guests.list({ includeArchived: true });
       return all.find((g) => g.personalLinkCode === code) ?? null;
     },
 
     /** A Reply through a Personal link: the code says who is replying, so no Match is needed. */
-    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link" | "closed"> {
+    async submitPersonal(
+      code: string,
+      reply: PersonalReply,
+    ): Promise<"recorded" | "unknown_link" | "no_longer_available" | "closed" | CompanionProblem> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return "unknown_link";
+      if (guest.archived) return "no_longer_available";
       if (!(await this.repliesOpen())) return "closed";
+      const party = normalizeParty(reply);
+      if (!party.ok) return party.problem;
       await ensure();
       await db.execute({
-        sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)
-              VALUES (?, ?, ?, ?, ?, 1, 'matched')`,
-        args: [guest.name, "Personal link", reply.attending ? 1 : 0, reply.attending ? reply.partySize : 1, guest.id],
+        sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
+              VALUES (?, ?, ?, ?, ?, ?, 1, 'matched')`,
+        args: [guest.name, "Personal link", reply.attending ? 1 : 0, party.partySize, JSON.stringify(party.companions), guest.id],
       });
       return "recorded";
     },
 
     /** The Reply that currently counts for the Guest behind a Personal link, or null if none yet (or unknown link). */
-    async currentForPersonalLink(code: string): Promise<PersonalReply | null> {
+    async currentForPersonalLink(code: string): Promise<CurrentReply | null> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return null;
       const { coming, declined } = await this.summary();
       const entry = [...coming, ...declined].find((e) => e.key === guest.id);
-      return entry ? { attending: entry.reply.attending, partySize: entry.reply.partySize } : null;
+      return entry
+        ? { attending: entry.reply.attending, partySize: entry.reply.partySize, companions: entry.reply.companions }
+        : null;
     },
 
     async assignToGuest(id: number, guestId: string) {
@@ -201,6 +249,7 @@ export function createReplyStore(
         relation: r.relation,
         attending: !!r.attending,
         partySize: r.party_size,
+        companions: parseCompanions(r.companions),
         confidence: r.confidence,
         suggestedGuestId: r.status === "review" ? r.matched_guest_id : null,
         suggestedGuestName: nameOf(r.status === "review" ? r.matched_guest_id : null),
@@ -237,6 +286,8 @@ export function createReplyStore(
       dismissed.sort(newestFirst);
       const entries = [...latest.values()];
       const coming = entries.filter((e) => e.reply.attending).sort(byNewest);
+      const headcount = coming.reduce((n, e) => n + e.reply.partySize, 0);
+      const children = coming.reduce((n, e) => n + e.reply.companions.filter((c) => c.kind === "child").length, 0);
       return {
         guests,
         coming,
@@ -244,7 +295,9 @@ export function createReplyStore(
         noReply: guests.filter((g) => !latest.has(g.id)),
         review,
         dismissed,
-        headcount: coming.reduce((n, e) => n + e.reply.partySize, 0),
+        headcount,
+        adults: headcount - children,
+        children,
         totalReplies: rows.length,
       };
     },

@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Share, Copy and sent status)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -15,3 +15,7 @@
 - [ ] Tests at the Invitations seam cover isolation of the edit, persistence across a restart, reset, and resend reusing the saved message.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-09. setMessage/resetMessage; messageFor returns saved message.

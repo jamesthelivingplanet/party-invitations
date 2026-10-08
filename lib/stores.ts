@@ -11,4 +11,4 @@ import { createReplyStore } from "./replies";
 export const guestStore = createGuestStore(db, { seed: seedGuests });
 export const eventStore = createEventStore(db);
 export const replyStore = createReplyStore(db, { guests: guestStore, jev: process.env.E2E_FAKE_JEV ? fakeJev : askJev, event: eventStore });
-export const invitationStore = createInvitationStore(db, { guests: guestStore, event: eventStore });
+export const invitationStore = createInvitationStore(db, { guests: guestStore, event: eventStore, replies: replyStore });

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { loginAsHost } from "./helpers";
+import { fillCompanions, loginAsHost } from "./helpers";
 
 async function saveSettings(page: Page, s: { date: string; days: string }) {
   await page.goto("/admin/settings");
@@ -24,6 +24,7 @@ test("after the Reply deadline links are read-only, the Shared link says closed,
     await expect(page.getByText("RSVP by")).toBeVisible();
     await page.getByRole("button", { name: "Yes!" }).click();
     await page.fill("input[name=partySize]", "2");
+    await fillCompanions(page, 1);
     await page.getByRole("button", { name: "Send reply" }).click();
     await expect(page.getByText("You're on the starting grid!")).toBeVisible();
 

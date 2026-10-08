@@ -10,6 +10,7 @@ const LATER_COLUMNS: [string, string][] = [
   ["decision", "TEXT"], // host decision: 'assigned' | 'new_guest' | 'dismissed' | NULL
   ["assigned_guest_id", "TEXT"],
   ["new_guest_name", "TEXT"],
+  ["companions", "TEXT"], // JSON list of { name, kind: "adult" | "child" }; NULL on older replies
 ];
 
 export async function ensureRsvpSchema(client: Client) {
