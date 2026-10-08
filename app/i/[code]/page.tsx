@@ -52,6 +52,15 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
     );
   }
 
+  if (guest.archived) {
+    return shell(
+      <>
+        <h1 className="mt-8 text-3xl font-black uppercase italic text-red-500">{t.linkGoneTitle}</h1>
+        <p className="mt-3 text-zinc-300">{t.linkGone}</p>
+      </>,
+    );
+  }
+
   const event = await eventStore.get();
   const deadline = replyDeadlineDate(event);
   const rows: [string, string][] = [

@@ -142,6 +142,14 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
       await db.execute({ sql: "UPDATE guests SET archived = 1 WHERE id = ?", args: [id] });
     },
 
+    /** Gives the Guest a new Personal link code; the old code stops working. Returns the new code. */
+    async regeneratePersonalLink(id: string): Promise<string> {
+      await ensure();
+      const code = newPersonalLinkCode();
+      await db.execute({ sql: "UPDATE guests SET personal_link_code = ? WHERE id = ?", args: [code, id] });
+      return code;
+    },
+
     async restore(id: string): Promise<void> {
       await ensure();
       await db.execute({ sql: "UPDATE guests SET archived = 0 WHERE id = ?", args: [id] });
