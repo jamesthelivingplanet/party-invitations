@@ -34,3 +34,25 @@ export async function toggleSent(data: FormData) {
   await invitationStore.setSent(String(data.get("guest") ?? ""), data.get("sent") === "1");
   revalidatePath("/admin/invitations");
 }
+
+/** Save a one-off message for a single Guest. */
+export async function saveGuestMessage(data: FormData) {
+  await requireAdminAction();
+  const guest = String(data.get("guest") ?? "");
+  try {
+    await invitationStore.setMessage(guest, String(data.get("body") ?? ""));
+  } catch (err) {
+    if (err instanceof ValidationError) redirect(`/admin/invitations?error=${encodeURIComponent(err.message)}`);
+    throw err;
+  }
+  revalidatePath("/admin/invitations");
+  redirect("/admin/invitations?edited=1");
+}
+
+/** Put a Guest's message back to the main template. */
+export async function resetGuestMessage(data: FormData) {
+  await requireAdminAction();
+  await invitationStore.resetMessage(String(data.get("guest") ?? ""));
+  revalidatePath("/admin/invitations");
+  redirect("/admin/invitations?edited=reset");
+}

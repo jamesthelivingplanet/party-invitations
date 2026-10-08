@@ -206,3 +206,74 @@ test("send-next picks the first Guest not yet sent, passes over skipped ones and
   await invitations.setSent(pedro.id, true);
   expect(await invitations.nextUnsent()).toMatchObject({ next: null, remaining: 0, skippedLeft: 0 });
 });
+
+test("a one-off edit changes only that Guest's message, not the template or other Guests", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const tom = await guests.add({ name: "Tom", language: "en", notes: "" });
+  await invitations.setTemplate("en", "Hi {name} {link}");
+
+  await invitations.setMessage(sarah.id, `Sarah, you absolute legend! ${origin}/i/${sarah.personalLinkCode}`);
+
+  expect(await invitations.messageFor(sarah.id, { origin })).toBe(`Sarah, you absolute legend! ${origin}/i/${sarah.personalLinkCode}`);
+  expect(await invitations.messageFor(tom.id, { origin })).toBe(`Hi Tom ${origin}/i/${tom.personalLinkCode}`);
+  expect(await invitations.getTemplate("en")).toBe("Hi {name} {link}");
+  expect((await invitations.overview()).map((r) => r.hasCustomMessage)).toEqual([true, false]);
+});
+
+test("a one-off edit survives a restart and a resend, which keeps the same message and updates the sent time", async () => {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const event = createEventStore(db);
+  const replies = createReplyStore(db, { guests, jev: async () => ({ picked: "none", probabilities: { none: 1 } }) });
+  const clock = { now: new Date("2026-11-01T10:00:00Z") };
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const text = `Custom for Sarah ${origin}/i/${sarah.personalLinkCode}`;
+  const first = createInvitationStore(db, { guests, event, replies, now: () => clock.now });
+  await first.setMessage(sarah.id, text);
+  await first.setSent(sarah.id, true);
+
+  clock.now = new Date("2026-11-05T10:00:00Z");
+  const again = createInvitationStore(db, { guests, event, replies, now: () => clock.now });
+  await again.setSent(sarah.id, true);
+
+  expect(await again.messageFor(sarah.id, { origin })).toBe(text);
+  expect((await again.overview())[0].sentAt).toBe("2026-11-05T10:00:00.000Z");
+  expect((await again.overview())[0].status).toBe("sent");
+});
+
+test("a one-off edit keeps its text when the main template changes later; reset restores the template-built message", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  await invitations.setTemplate("en", "Old {name} {link}");
+  await invitations.setMessage(sarah.id, `Mine ${origin}/i/${sarah.personalLinkCode}`);
+  await invitations.setTemplate("en", "New {name} {link}");
+
+  expect(await invitations.messageFor(sarah.id, { origin })).toBe(`Mine ${origin}/i/${sarah.personalLinkCode}`);
+
+  await invitations.resetMessage(sarah.id);
+
+  expect(await invitations.messageFor(sarah.id, { origin })).toBe(`New Sarah ${origin}/i/${sarah.personalLinkCode}`);
+  expect((await invitations.overview())[0].hasCustomMessage).toBe(false);
+});
+
+test("reset keeps the sent status; a one-off edit keeps it too", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  await invitations.setSent(sarah.id, true);
+  await invitations.setMessage(sarah.id, `x ${origin}/i/${sarah.personalLinkCode}`);
+  expect((await invitations.overview())[0].status).toBe("sent");
+  await invitations.resetMessage(sarah.id);
+  expect((await invitations.overview())[0].status).toBe("sent");
+});
+
+test("a one-off message must be non-empty, not too long, keep the Guest's Personal link, and be for a real Guest", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+
+  await expect(invitations.setMessage(sarah.id, "   ")).rejects.toThrow(ValidationError);
+  await expect(invitations.setMessage(sarah.id, "no link here")).rejects.toThrow(/link/i);
+  await expect(invitations.setMessage(sarah.id, `${"a".repeat(2001)} /i/${sarah.personalLinkCode}`)).rejects.toThrow(/2000/);
+  await expect(invitations.setMessage("gst_nope", "x")).rejects.toThrow(/guest/i);
+  await expect(invitations.resetMessage("gst_nope")).rejects.toThrow(/guest/i);
+});

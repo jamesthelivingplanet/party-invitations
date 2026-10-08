@@ -4,7 +4,7 @@ import { placeholders } from "@/lib/invitations";
 import { guestStore, invitationStore } from "@/lib/stores";
 import { Section } from "../ui";
 import { AdminShell } from "../shell";
-import { saveTemplate, toggleSent } from "./actions";
+import { resetGuestMessage, saveGuestMessage, saveTemplate, toggleSent } from "./actions";
 import { ShareButton } from "./share-button";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ const primary =
 
 export default async function Invitations(props: PageProps<"/admin/invitations">) {
   await requireAdminPage();
-  const { error, saved, guest: guestParam, filter } = await props.searchParams;
+  const { error, saved, guest: guestParam, filter, edited } = await props.searchParams;
   const notReplied = filter === "not-replied";
   const guests = await guestStore.list();
   const chosenId = typeof guestParam === "string" ? guestParam : "";
@@ -60,6 +60,12 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
         </p>
       )}
 
+      {(edited === "1" || edited === "reset") && (
+        <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+          {edited === "1" ? "Message saved for this Guest only." : "Message reset to the main message."}
+        </p>
+      )}
+
       <Section title="Send">
         <div className="space-y-3">
           <a href="/admin/invitations/send" className={`${primary} w-full`}>Send next Guest</a>
@@ -83,6 +89,7 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
                     <span data-testid="status" className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[r.status]}`}>
                       {statusLabel[r.status]}
                     </span>
+                    {r.hasCustomMessage && <span data-testid="edited" className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Edited</span>}
                     {r.sentAt && <time dateTime={r.sentAt} className="text-xs text-zinc-500">sent {new Date(r.sentAt).toISOString().slice(0, 16).replace("T", " ")} UTC</time>}
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -95,6 +102,23 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
                       </button>
                     </form>
                   </div>
+                  <details className="group">
+                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-zinc-700 underline-offset-2 hover:underline">Edit message</summary>
+                    <div className="space-y-3 pt-2">
+                      <form action={saveGuestMessage} className="space-y-3">
+                        <input type="hidden" name="guest" value={r.guestId} />
+                        <label htmlFor={`msg-${r.guestId}`} className={label}>Message for {r.name} only</label>
+                        <textarea id={`msg-${r.guestId}`} name="body" defaultValue={messages.get(r.guestId) ?? ""} rows={10} maxLength={2000} className={field} />
+                        <button className={primary}>Save for {r.name} only</button>
+                      </form>
+                      {r.hasCustomMessage && (
+                        <form action={resetGuestMessage}>
+                          <input type="hidden" name="guest" value={r.guestId} />
+                          <button className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-rose-700 underline-offset-2 hover:underline">Reset to main message</button>
+                        </form>
+                      )}
+                    </div>
+                  </details>
                 </li>
               ))}
             </ul>
