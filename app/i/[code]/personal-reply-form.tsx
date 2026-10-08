@@ -3,9 +3,17 @@
 import { useState } from "react";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
-export default function PersonalReplyForm({ code, locale }: { code: string; locale: Locale }) {
+export default function PersonalReplyForm({
+  code,
+  locale,
+  current,
+}: {
+  code: string;
+  locale: Locale;
+  current: { attending: boolean; partySize: number } | null;
+}) {
   const t = dictionaries[locale];
-  const [attending, setAttending] = useState<boolean | null>(null);
+  const [attending, setAttending] = useState<boolean | null>(current?.attending ?? null);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -63,7 +71,7 @@ export default function PersonalReplyForm({ code, locale }: { code: string; loca
       {attending && (
         <label className="block font-bold">
           {t.howMany}
-          <input name="partySize" type="number" min={1} max={10} defaultValue={1} className={input} />
+          <input name="partySize" type="number" min={1} max={10} defaultValue={current?.attending ? current.partySize : 1} className={input} />
         </label>
       )}
       {state === "error" && <p className="text-sm font-semibold text-red-700">{t.errGeneric}</p>}

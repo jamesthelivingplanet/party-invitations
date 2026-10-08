@@ -80,3 +80,28 @@ test("regenerating a link retires the old one, and archiving shows 'no longer av
   await page.goto(newPath);
   await expect(page.getByRole("heading", { name: "¡Hola Rita Regenerate!" })).toBeVisible();
 });
+
+test("a Guest reopens their link, sees their answer, and changes it", async ({ page }) => {
+  const path = await addGuest(page, "Carla Changer", "en");
+  await page.goto(path);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.fill("input[name=partySize]", "4");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+
+  await page.goto(path);
+  await expect(page.locator("input[name=partySize]")).toHaveValue("4");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await page.fill("input[name=partySize]", "2");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Carla Changer" }).filter({ hasText: "2 people" })).toHaveCount(1);
+
+  await page.goto(path);
+  await page.getByRole("button", { name: "Can't make it" }).click();
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Carla Changer" }).filter({ hasText: "people" })).toHaveCount(0);
+});

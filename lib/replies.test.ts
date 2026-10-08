@@ -312,3 +312,40 @@ test("a Personal link finds its Guest, and says so when the Guest is archived", 
   await guests.archive(sarah.id);
   expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toMatchObject({ name: "Sarah Johnson", archived: true });
 });
+
+test("reopening a Personal link shows the Guest's current Reply, or nothing before they reply", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toBeNull();
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 3 });
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: true, partySize: 3 });
+  expect(await replies.currentForPersonalLink("nope")).toBeNull();
+});
+
+test("changing a Reply replaces the earlier one: counted once, latest answer", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 4 });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2 });
+
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: true, partySize: 2 });
+  const summary = await replies.summary();
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.headcount).toBe(2);
+});
+
+test("changing from coming to not coming removes the Guest from the headcount", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 3 });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: false, partySize: 3 });
+
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: false, partySize: 1 });
+  const summary = await replies.summary();
+  expect(summary.headcount).toBe(0);
+  expect(summary.coming).toEqual([]);
+  expect(summary.declined.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+});

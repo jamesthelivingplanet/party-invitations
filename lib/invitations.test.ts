@@ -1,0 +1,110 @@
+import { expect, test } from "vitest";
+import { testDb } from "@/test/db";
+import { createEventStore } from "./event";
+import { createGuestStore } from "./guests";
+import { createInvitationStore, ValidationError } from "./invitations";
+
+const origin = "https://party.example";
+
+function setup() {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const event = createEventStore(db);
+  const invitations = createInvitationStore(db, { guests, event });
+  return { guests, event, invitations };
+}
+
+test("starting wording exists in both languages and mentions the placeholders that matter", async () => {
+  const { invitations } = setup();
+
+  for (const language of ["en", "es"] as const) {
+    const template = await invitations.getTemplate(language);
+    expect(template).toContain("{name}");
+    expect(template).toContain("{link}");
+  }
+});
+
+test("an English Guest's message greets them and carries their own Personal link and the event details", async () => {
+  const { guests, event, invitations } = setup();
+  await event.update({ name: "Alex's Birthday", date: "2026-12-19", time: "2:00 PM", place: "Fun Park", replyDeadlineDays: 7 });
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await invitations.setTemplate(
+    "en",
+    "Hi {name}! {event} is on {date} at {time} at {place}. Reply by {deadline}: {link}",
+  );
+
+  const message = await invitations.messageFor(sarah.id, { origin });
+
+  expect(message).toBe(
+    `Hi Sarah Johnson! Alex's Birthday is on Saturday, December 19, 2026 at 2:00 PM at Fun Park. Reply by Saturday, December 12, 2026: ${origin}/i/${sarah.personalLinkCode}`,
+  );
+});
+
+test("a Spanish Guest gets the Spanish template with the date written in Spanish", async () => {
+  const { guests, event, invitations } = setup();
+  await event.update({ date: "2026-12-19" });
+  const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  await invitations.setTemplate("es", "Hola {name}, es el {date}. {link}");
+  await invitations.setTemplate("en", "Hello {name} {link}");
+
+  const message = await invitations.messageFor(pedro.id, { origin });
+
+  expect(message).toBe(`Hola Pedro, es el sábado, 19 de diciembre de 2026. ${origin}/i/${pedro.personalLinkCode}`);
+});
+
+test("unset event details read as to be announced, never blank or a raw placeholder", async () => {
+  const { guests, invitations, event } = setup();
+  await event.update({ time: null, place: null, replyDeadlineDays: null });
+  const en = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const es = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  const both = "{time}|{place}|{deadline}|{link}";
+  await invitations.setTemplate("en", both);
+  await invitations.setTemplate("es", both);
+
+  expect(await invitations.messageFor(en.id, { origin })).toBe(`to be announced|to be announced|to be announced|${origin}/i/${en.personalLinkCode}`);
+  expect(await invitations.messageFor(es.id, { origin })).toBe(`por confirmar|por confirmar|por confirmar|${origin}/i/${es.personalLinkCode}`);
+});
+
+test("a saved template persists and changes later messages", async () => {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const event = createEventStore(db);
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  await createInvitationStore(db, { guests, event }).setTemplate("en", "First {name} {link}");
+  const invitations = createInvitationStore(db, { guests, event });
+  expect(await invitations.messageFor(sarah.id, { origin })).toBe(`First Sarah ${origin}/i/${sarah.personalLinkCode}`);
+
+  await invitations.setTemplate("en", "Second {name} {link}");
+
+  expect(await invitations.messageFor(sarah.id, { origin })).toBe(`Second Sarah ${origin}/i/${sarah.personalLinkCode}`);
+});
+
+test("a template with an unknown placeholder or no text is rejected and the old one stays", async () => {
+  const { invitations } = setup();
+  const before = await invitations.getTemplate("en");
+
+  await expect(invitations.setTemplate("en", "Hi {nmae} {link}")).rejects.toThrow(ValidationError);
+  await expect(invitations.setTemplate("en", "   ")).rejects.toThrow(ValidationError);
+
+  expect(await invitations.getTemplate("en")).toBe(before);
+});
+
+test("a template without the Personal link placeholder is rejected", async () => {
+  const { invitations } = setup();
+
+  await expect(invitations.setTemplate("en", "Hi {name}, come to the party")).rejects.toThrow(/link/i);
+});
+
+test("a Guest's name that looks like a placeholder is not expanded again", async () => {
+  const { guests, invitations } = setup();
+  const tricky = await guests.add({ name: "{link}", language: "en", notes: "" });
+  await invitations.setTemplate("en", "Hi {name} {link}");
+
+  expect(await invitations.messageFor(tricky.id, { origin })).toBe(`Hi {link} ${origin}/i/${tricky.personalLinkCode}`);
+});
+
+test("a message for an unknown Guest is refused", async () => {
+  const { invitations } = setup();
+
+  await expect(invitations.messageFor("gst_nope", { origin })).rejects.toThrow(/guest/i);
+});

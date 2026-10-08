@@ -62,6 +62,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
   }
 
   const event = await eventStore.get();
+  const current = await replyStore.currentForPersonalLink(code);
   const deadline = replyDeadlineDate(event);
   const rows: [string, string][] = [
     [t.date, formatDate(event.date, locale)],
@@ -86,7 +87,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
       </dl>
 
       <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">{t.inRace}</h2>
-      <PersonalReplyForm code={code} locale={locale} />
+      <PersonalReplyForm code={code} locale={locale} current={current} />
     </>,
   );
 }

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (A Guest can reply through their Personal link)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -16,3 +16,7 @@
 - [ ] Tests at the Invitations seam cover message building per Guest and language, placeholder filling and the unset-value case.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-07 (2aaf819). lib/invitations.ts store; /admin/invitations.
