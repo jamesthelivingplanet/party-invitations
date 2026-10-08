@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dashboardNumbers, loginAsHost } from "./helpers";
+import { dashboardNumbers, fillCompanions, loginAsHost } from "./helpers";
 
 /** Adds a Guest through the admin and returns the path of their Personal link. */
 async function addGuest(page: import("@playwright/test").Page, name: string, language: "en" | "es") {
@@ -22,6 +22,7 @@ test("a Guest opens their Personal link in English, replies, and the Host sees i
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   await page.getByRole("button", { name: "Yes!" }).click();
   await page.fill("input[name=partySize]", "3");
+  await fillCompanions(page, 2);
   await page.getByRole("button", { name: "Send reply" }).click();
   await expect(page.getByText("You're on the starting grid!")).toBeVisible();
 
@@ -86,13 +87,17 @@ test("a Guest reopens their link, sees their answer, and changes it", async ({ p
   await page.goto(path);
   await page.getByRole("button", { name: "Yes!" }).click();
   await page.fill("input[name=partySize]", "4");
+  await fillCompanions(page, 3);
   await page.getByRole("button", { name: "Send reply" }).click();
   await expect(page.getByText("You're on the starting grid!")).toBeVisible();
 
   await page.goto(path);
   await expect(page.locator("input[name=partySize]")).toHaveValue("4");
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await expect(page.locator("input[name=companion-name-2]")).toHaveValue("Companion 3");
   await page.fill("input[name=partySize]", "2");
+  await expect(page.locator("input[name=companion-name-1]")).toHaveCount(0);
+  await expect(page.locator("input[name=companion-name-0]")).toHaveValue("Companion 1");
   await page.getByRole("button", { name: "Send reply" }).click();
   await expect(page.getByText("You're on the starting grid!")).toBeVisible();
 
@@ -104,4 +109,30 @@ test("a Guest reopens their link, sees their answer, and changes it", async ({ p
   await page.getByRole("button", { name: "Send reply" }).click();
   await page.goto("/admin");
   await expect(page.locator("li", { hasText: "Carla Changer" }).filter({ hasText: "people" })).toHaveCount(0);
+});
+
+test("Companions are named and labelled, shown to the Host, and hidden when not coming", async ({ page }) => {
+  const path = await addGuest(page, "Fiona Family", "en");
+  await page.goto(path);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await expect(page.locator("input[name=companion-name-0]")).toHaveCount(0);
+  await page.fill("input[name=partySize]", "3");
+  await expect(page.locator("input[name=companion-name-1]")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await page.fill("input[name=companion-name-0]", "Tim Tiny");
+  await page.selectOption("select[name=companion-kind-0]", "child");
+  await page.fill("input[name=companion-name-1]", "Ada Adult");
+  await page.selectOption("select[name=companion-kind-1]", "adult");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+
+  await page.goto("/admin");
+  const row = page.locator("li", { hasText: "Fiona Family" }).filter({ hasText: "3 people" });
+  await expect(row.getByText("Tim Tiny · child")).toBeVisible();
+  await expect(row.getByText("Ada Adult · adult")).toBeVisible();
+
+  await page.goto(path);
+  await page.getByRole("button", { name: "Can't make it" }).click();
+  await expect(page.locator("input[name=partySize]")).toHaveCount(0);
+  await expect(page.locator("input[name=companion-name-0]")).toHaveCount(0);
 });

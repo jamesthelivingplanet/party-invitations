@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CompanionFields, readParty } from "@/app/companion-fields";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
 export default function PersonalReplyForm({
@@ -10,11 +11,12 @@ export default function PersonalReplyForm({
 }: {
   code: string;
   locale: Locale;
-  current: { attending: boolean; partySize: number } | null;
+  current: { attending: boolean; partySize: number; companions: { name: string; kind: "adult" | "child" }[] } | null;
 }) {
   const t = dictionaries[locale];
   const [attending, setAttending] = useState<boolean | null>(current?.attending ?? null);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [message, setMessage] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,10 +27,16 @@ export default function PersonalReplyForm({
       const res = await fetch("/api/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, attending, partySize: Number(form.get("partySize")) }),
+        body: JSON.stringify({ code, attending, ...readParty(form) }),
       });
-      setState(res.ok ? "done" : "error");
+      if (res.ok) setState("done");
+      else {
+        const error = (await res.json().catch(() => null))?.error;
+        setMessage(error === "companion_count" ? t.errCompanionCount : error === "companion_incomplete" ? t.errCompanionIncomplete : t.errGeneric);
+        setState("error");
+      }
     } catch {
+      setMessage(t.errGeneric);
       setState("error");
     }
   }
@@ -42,9 +50,6 @@ export default function PersonalReplyForm({
       </div>
     );
   }
-
-  const input =
-    "mt-1 w-full rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-red-600";
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-2xl bg-white p-6 text-zinc-900 shadow-xl">
@@ -69,12 +74,13 @@ export default function PersonalReplyForm({
         </div>
       </div>
       {attending && (
-        <label className="block font-bold">
-          {t.howMany}
-          <input name="partySize" type="number" min={1} max={10} defaultValue={current?.attending ? current.partySize : 1} className={input} />
-        </label>
+        <CompanionFields
+          locale={locale}
+          initialPartySize={current?.attending ? current.partySize : 1}
+          initialCompanions={current?.attending ? current.companions : []}
+        />
       )}
-      {state === "error" && <p className="text-sm font-semibold text-red-700">{t.errGeneric}</p>}
+      {state === "error" && <p className="text-sm font-semibold text-red-700">{message}</p>}
       <button
         disabled={attending === null || state === "sending"}
         className="w-full rounded-lg bg-yellow-400 px-4 py-3 text-lg font-extrabold uppercase tracking-wide text-zinc-900 shadow disabled:opacity-50"

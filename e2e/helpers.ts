@@ -16,7 +16,10 @@ export async function replyOnSharedLink(
   await page.fill("input[name=name]", reply.name);
   await page.fill("input[name=relation]", reply.relation);
   await page.getByRole("button", { name: reply.coming ? "Yes!" : "Can't make it" }).click();
-  if (reply.coming && reply.partySize) await page.fill("input[name=partySize]", String(reply.partySize));
+  if (reply.coming && reply.partySize) {
+    await page.fill("input[name=partySize]", String(reply.partySize));
+    await fillCompanions(page, reply.partySize - 1);
+  }
   await page.getByRole("button", { name: /send/i }).click();
 }
 
@@ -32,4 +35,12 @@ export async function dashboardNumbers(page: Page) {
   };
   expect(Object.values(numbers).every(Number.isInteger)).toBe(true);
   return numbers;
+}
+
+/** Names n Companions "Companion 1".."Companion n", all adults, on whichever form is open. */
+export async function fillCompanions(page: Page, n: number) {
+  for (let i = 0; i < n; i++) {
+    await page.fill(`input[name=companion-name-${i}]`, `Companion ${i + 1}`);
+    await page.selectOption(`select[name=companion-kind-${i}]`, "adult");
+  }
 }

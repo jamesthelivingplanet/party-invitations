@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { requireAdminPage } from "@/lib/admin-auth";
 import type { Guest } from "@/lib/guests";
-import type { Entry, Reply } from "@/lib/replies";
+import type { Companion, Entry, Reply } from "@/lib/replies";
 import { eventStore, replyStore } from "@/lib/stores";
 import { ReviewActions, UndoButton } from "./controls";
 import { AdminShell } from "./shell";
@@ -14,7 +14,7 @@ export default async function Admin() {
   await requireAdminPage();
 
   const [summary, event] = await Promise.all([replyStore.summary(), eventStore.get()]);
-  const { guests, coming, declined, noReply, review, dismissed, headcount, totalReplies } = summary;
+  const { guests, coming, declined, noReply, review, dismissed, headcount, adults, children, totalReplies } = summary;
   const now = new Date();
 
   const repliedAs = (e: Entry) => (e.reply.name.trim().toLowerCase() !== e.name.toLowerCase() ? e.reply.name : null);
@@ -39,7 +39,7 @@ export default async function Admin() {
             emphasis
             label="People coming"
             value={headcount}
-            hint="Total headcount incl. party sizes"
+            hint={`${adults} ${adults === 1 ? "adult" : "adults"} · ${children} ${children === 1 ? "child" : "children"}`}
             className="col-span-2 lg:col-span-1"
           />
           <StatCard label="Confirmed RSVPs" value={coming.length} hint="Guests saying yes" />
@@ -56,7 +56,7 @@ export default async function Admin() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
           <div className="min-w-0 space-y-10">
             {/* Coming */}
-            <Section title="Coming" count={coming.length} description={`${headcount} people in total.`}>
+            <Section title="Coming" count={coming.length} description={`${headcount} people in total: ${adults} ${adults === 1 ? "adult" : "adults"}, ${children} ${children === 1 ? "child" : "children"}.`}>
               {coming.length === 0 ? (
                 <Empty>No confirmed guests yet.</Empty>
               ) : (
@@ -70,6 +70,7 @@ export default async function Admin() {
                       tag={tagFor(e)}
                       badge={<Badge tone="green">Coming</Badge>}
                       size={e.reply.partySize}
+                      companions={e.reply.companions}
                       createdAt={e.reply.createdAt}
                       now={now}
                       action={undo(e)}
@@ -172,6 +173,7 @@ function GuestRow({
   tag,
   badge,
   size,
+  companions,
   createdAt,
   now,
   action,
@@ -182,6 +184,7 @@ function GuestRow({
   tag?: string | null;
   badge: ReactNode;
   size?: number;
+  companions?: Companion[];
   createdAt: string;
   now: Date;
   action?: ReactNode;
@@ -197,6 +200,7 @@ function GuestRow({
         {repliedAs && (
           <div className="mt-0.5 break-words text-sm text-zinc-600">Replied as &ldquo;{repliedAs}&rdquo;</div>
         )}
+        {companions && <CompanionList companions={companions} />}
         <div className="mt-0.5">
           <When createdAt={createdAt} now={now} />
         </div>
@@ -207,6 +211,19 @@ function GuestRow({
         {action}
       </div>
     </li>
+  );
+}
+
+function CompanionList({ companions }: { companions: Companion[] }) {
+  if (companions.length === 0) return null;
+  return (
+    <ul aria-label="Companions" className="mt-0.5 text-sm text-zinc-600">
+      {companions.map((c, i) => (
+        <li key={i}>
+          {c.name} · {c.kind === "child" ? "child" : "adult"}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -224,6 +241,8 @@ function ReviewCard({ r, now, guests }: { r: Reply; now: Date; guests: Guest[] }
           {r.attending ? <Badge tone="green">Says coming</Badge> : <Badge tone="gray">Says not coming</Badge>}
         </div>
       </div>
+
+      {r.attending && <CompanionList companions={r.companions} />}
 
       <figure className="mt-3 border-l-4 border-zinc-300 pl-3">
         <figcaption className="text-xs font-semibold uppercase tracking-wide text-zinc-500">In their words</figcaption>
