@@ -35,7 +35,7 @@ test("the Host can assign a reply to a different Guest", async ({ page }) => {
   const before = await dashboardNumbers(page);
 
   await card.locator("summary").click();
-  await card.locator("select").selectOption({ label: "Uncle Dave" });
+  await card.locator("select[name=guest_id]").selectOption({ label: "Uncle Dave" });
   await card.getByRole("button", { name: "Assign to this guest" }).click();
   await page.getByRole("button", { name: "Yes, confirm" }).click();
 
@@ -77,9 +77,16 @@ test("the Host can add a reply as a new Guest and it counts in the headcount", a
 
   await card.locator("summary").click();
   await card.locator("input[name=new_name]").fill("Pat Newcomer");
-  await card.getByRole("button", { name: "Add as new guest" }).click();
+  await card.locator("select[name=language]").selectOption("es");
+  await card.getByRole("button", { name: "Accept request" }).click();
   await page.getByRole("button", { name: "Yes, confirm" }).click();
 
-  await expect(page.locator("li", { hasText: "Pat Newcomer" }).getByText("Added by you")).toBeVisible();
+  await expect(page.locator("li", { hasText: "Pat Newcomer" }).getByText("Confirmed by you")).toBeVisible();
   expect((await dashboardNumbers(page)).headcount).toBe(before.headcount + 3);
+
+  await page.goto("/admin/invitations");
+  await expect(page.locator("li[data-guest='Pat Newcomer']")).toBeVisible();
+  await page.goto("/admin/guests");
+  const personal = await page.locator("li", { hasText: "Pat Newcomer" }).first().locator("[data-personal-path]").getAttribute("data-personal-path");
+  expect(personal).toMatch(/^\/i\//);
 });

@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 import { ensureRsvpSchema } from "./db";
-import type { Guest } from "./guests";
+import type { Guest, GuestInput, Language } from "./guests";
 import type { JevAnswer } from "./match";
 
 export type { JevAnswer };
@@ -118,7 +118,10 @@ type Row = {
   new_guest_name: string | null;
 };
 
-type Guests = { list(opts?: { includeArchived?: boolean }): Promise<Guest[]> };
+type Guests = {
+  list(opts?: { includeArchived?: boolean }): Promise<Guest[]>;
+  add(input: GuestInput): Promise<Guest>;
+};
 
 function parseCompanions(json: string | null): Companion[] {
   try {
@@ -284,11 +287,41 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
       await setDecision(id, "decision='assigned', assigned_guest_id=?, new_guest_name=NULL", [guestId]);
     },
 
-    /** Not on the list, but welcome: counts as coming under this name. */
-    async welcomeAs(id: number, name: string) {
-      const clean = name.trim().slice(0, 100);
-      if (!clean) throw new Error("Name required");
-      await setDecision(id, "decision='new_guest', new_guest_name=?, assigned_guest_id=NULL", [clean]);
+    /**
+     * Accept request: a Reply in review that is from someone not on the list becomes a real Guest
+     * (with a Personal link, in the language the Host picks), and this Reply counts for them.
+     */
+    async acceptReviewAsGuest(id: number, name: string, language: Language) {
+      const guest = await deps.guests.add({ name, language, notes: "" });
+      await setDecision(id, "decision='assigned', assigned_guest_id=?, new_guest_name=NULL", [guest.id]);
+    },
+
+    /**
+     * Accept a Request: the person becomes a Guest in the chosen language, the Reply that came with the Request
+     * (answer, Party size, Companions) becomes their current Reply, and the Request is removed.
+     */
+    async acceptRequest(id: number, language: Language): Promise<"accepted" | "not_found"> {
+      await ensure();
+      // Removing the row first claims it, so a double submit cannot make two Guests.
+      const gone = await db.execute({ sql: "DELETE FROM requests WHERE id = ? RETURNING *", args: [id] });
+      const r = gone.rows[0];
+      if (!r) return "not_found";
+      const guest = await deps.guests.add({ name: String(r.name), language, notes: "" });
+      if (r.attending !== null) {
+        await db.execute({
+          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
+                VALUES (?, 'Request', ?, ?, ?, ?, 1, 'matched')`,
+          args: [guest.name, Number(r.attending) ? 1 : 0, Number(r.party_size), String(r.companions), guest.id],
+        });
+      }
+      return "accepted";
+    },
+
+    /** Decline a Request: it is removed, with no Guest and nothing counted. */
+    async declineRequest(id: number): Promise<"declined" | "not_found"> {
+      await ensure();
+      const gone = await db.execute({ sql: "DELETE FROM requests WHERE id = ?", args: [id] });
+      return gone.rowsAffected > 0 ? "declined" : "not_found";
     },
 
     async markNotInvited(id: number) {

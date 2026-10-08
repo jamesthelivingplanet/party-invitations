@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { decide } from "./actions";
 
-type Intent = "assign" | "new" | "dismiss";
+type Intent = "assign" | "new" | "dismiss" | "accept" | "decline";
 type Variant = "primary" | "secondary" | "danger";
 
 const base =
@@ -22,7 +22,7 @@ function questionFor(intent: Intent, data: FormData, guestNames: Record<string, 
   }
   if (intent === "new") {
     const name = String(data.get("new_name") ?? "").trim();
-    return { text: `Add “${name}” as a new guest?`, detail: "They'll be counted in your headcount." };
+    return { text: `Accept request and add “${name}” as a new guest?`, detail: "They'll get a Personal link and be counted in your headcount." };
   }
   return { text: "Mark this reply as not invited?", detail: "It won't be counted. You can bring it back later." };
 }
@@ -48,6 +48,8 @@ export function ActionForm({
   guestNames,
   className = "",
   children,
+  action = decide,
+  confirm,
 }: {
   id: number;
   intent: Intent;
@@ -56,6 +58,10 @@ export function ActionForm({
   guestNames: Record<string, string>;
   className?: string;
   children?: ReactNode;
+  /** The server action to run once confirmed (defaults to deciding on a reply). */
+  action?: (formData: FormData) => void | Promise<void>;
+  /** Overrides the confirmation question. */
+  confirm?: { text: string; detail: string };
 }) {
   const ref = useRef<HTMLFormElement>(null);
   const [ask, setAsk] = useState<{ text: string; detail: string } | null>(null);
@@ -63,11 +69,12 @@ export function ActionForm({
   function open() {
     const form = ref.current;
     if (!form || !form.reportValidity()) return;
-    setAsk(questionFor(intent, new FormData(form), guestNames));
+    const data = new FormData(form);
+    setAsk(confirm ?? questionFor(intent, data, guestNames));
   }
 
   return (
-    <form ref={ref} action={decide} className={className}>
+    <form ref={ref} action={action} className={className}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="intent" value={intent} />
       {children}

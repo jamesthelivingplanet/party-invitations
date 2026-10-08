@@ -107,8 +107,8 @@ export function ReviewActions({
             </ActionForm>
           </Panel>
 
-          <Panel title="Not on my list, but welcome" hint="Add them as a new guest. They'll be counted in your headcount.">
-            <ActionForm {...common} intent="new" label="Add as new guest" variant="secondary">
+          <Panel title="Accept request" hint="Not on my list, but welcome. Add them as a new guest with a Personal link; they'll be counted in your headcount.">
+            <ActionForm {...common} intent="new" label="Accept request" variant="secondary">
               <label htmlFor={`n-${id}`} className={label}>
                 Guest name
               </label>
@@ -122,6 +122,13 @@ export function ReviewActions({
                 placeholder="e.g. Michael from work"
                 className={field}
               />
+              <label htmlFor={`l-${id}`} className={`${label} mt-3`}>
+                Language
+              </label>
+              <select id={`l-${id}`} name="language" defaultValue="en" className={field}>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+              </select>
             </ActionForm>
           </Panel>
         </div>

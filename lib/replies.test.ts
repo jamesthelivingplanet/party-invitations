@@ -225,17 +225,21 @@ test("marking a reply not invited sets it aside, and it can be brought back", as
   expect(summary.review).toHaveLength(1);
 });
 
-test("a reply the host welcomes by name counts as coming under that name", async () => {
-  const { replies } = await setup({}, jevDown);
+test("accepting a review item as a request makes a real Guest in the chosen language and counts the Reply", async () => {
+  const { guests, replies } = await setup({}, jevDown);
   await replies.submitShared(shared("Stranger", { ...party(2) }));
   const [pending] = (await replies.summary()).review;
 
-  await replies.welcomeAs(pending.id, "Pat Newcomer");
+  await replies.acceptReviewAsGuest(pending.id, "Pat Newcomer", "es");
 
   const summary = await replies.summary();
-  expect(summary.coming[0]).toMatchObject({ name: "Pat Newcomer", by: "new" });
+  expect(summary.review).toEqual([]);
+  expect(summary.coming[0]).toMatchObject({ name: "Pat Newcomer", by: "assigned" });
   expect(summary.headcount).toBe(2);
-  await expect(replies.welcomeAs(pending.id, "  ")).rejects.toThrow();
+  const [guest] = await guests.list();
+  expect(guest).toMatchObject({ name: "Pat Newcomer", language: "es" });
+  expect(guest.personalLinkCode).toBeTruthy();
+  await expect(replies.acceptReviewAsGuest(pending.id, "  ", "en")).rejects.toThrow();
 });
 
 test("the summary counts every reply received, however it was sorted", async () => {
@@ -558,4 +562,70 @@ test("Requests are listed newest first", async () => {
   await replies.submitRequest(request({ name: "First" }));
   await replies.submitRequest(request({ name: "Second" }));
   expect((await replies.listRequests()).map((r) => r.name)).toEqual(["Second", "First"]);
+});
+
+test("accepting a Request makes a Guest with a Personal link, keeps its Reply and counts it, and removes the Request", async () => {
+  const { guests, replies } = await setup();
+  await replies.submitRequest(
+    request({ attending: true, partySize: 3, companions: [{ name: "Sam", kind: "adult" }, { name: "Mia", kind: "child" }] }),
+  );
+  const [req] = await replies.listRequests();
+  expect((await replies.summary()).headcount).toBe(0);
+
+  const outcome = await replies.acceptRequest(req.id, "es");
+
+  expect(outcome).toBe("accepted");
+  expect(await replies.listRequests()).toEqual([]);
+  const [guest] = await guests.list();
+  expect(guest).toMatchObject({ name: "Pat Stranger", language: "es" });
+  expect(await replies.guestForPersonalLink(guest.personalLinkCode)).toMatchObject({ id: guest.id });
+  const summary = await replies.summary();
+  expect(summary.coming.map((e) => e.name)).toEqual(["Pat Stranger"]);
+  expect(summary.headcount).toBe(3);
+  expect(summary.children).toBe(1);
+  expect(summary.noReply).toEqual([]);
+  expect(await replies.currentForPersonalLink(guest.personalLinkCode)).toMatchObject({
+    attending: true,
+    partySize: 3,
+    companions: [{ name: "Sam", kind: "adult" }, { name: "Mia", kind: "child" }],
+  });
+});
+
+test("accepting a Request that said not coming makes a declined Guest; one with no answer makes a Guest with no Reply", async () => {
+  const { replies } = await setup();
+  await replies.submitRequest(request({ name: "No Thanks", attending: false }));
+  await replies.submitRequest(request({ name: "Undecided" }));
+  const reqs = await replies.listRequests();
+
+  for (const r of reqs) await replies.acceptRequest(r.id, "en");
+
+  const summary = await replies.summary();
+  expect(summary.declined.map((e) => e.name)).toEqual(["No Thanks"]);
+  expect(summary.noReply.map((g) => g.name)).toEqual(["Undecided"]);
+  expect(summary.headcount).toBe(0);
+});
+
+test("declining a Request removes it without creating a Guest or counting anything", async () => {
+  const { guests, replies } = await setup();
+  await replies.submitRequest(request({ attending: true, partySize: 1 }));
+  const [req] = await replies.listRequests();
+
+  expect(await replies.declineRequest(req.id)).toBe("declined");
+
+  expect(await replies.listRequests()).toEqual([]);
+  expect(await guests.list()).toEqual([]);
+  const summary = await replies.summary();
+  expect(summary.headcount).toBe(0);
+  expect(summary.totalReplies).toBe(0);
+});
+
+test("a Request that is already gone cannot be accepted or declined again", async () => {
+  const { guests, replies } = await setup();
+  await replies.submitRequest(request());
+  const [req] = await replies.listRequests();
+  await replies.acceptRequest(req.id, "en");
+
+  expect(await replies.acceptRequest(req.id, "en")).toBe("not_found");
+  expect(await replies.declineRequest(req.id)).toBe("not_found");
+  expect(await guests.list()).toHaveLength(1);
 });

@@ -1,6 +1,8 @@
 import { requireAdminPage } from "@/lib/admin-auth";
 import { replyStore } from "@/lib/stores";
+import { ActionForm } from "../action-form";
 import { AdminShell } from "../shell";
+import { decideRequest } from "./actions";
 import { Badge, Empty, List, PartySize, Section, When } from "../ui";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +66,45 @@ export default async function Requests() {
                     ))}
                   </dl>
                   <When createdAt={r.createdAt} now={now} />
+                  <div className="grid gap-2 pt-1 sm:grid-cols-2">
+                    <ActionForm
+                      id={r.id}
+                      intent="accept"
+                      label="Accept request"
+                      variant="primary"
+                      guestNames={{}}
+                      action={decideRequest}
+                      confirm={{
+                        text: `Accept request and add “${r.name}” as a guest?`,
+                        detail: "They'll get a Personal link and any answer they gave will be counted in your headcount.",
+                      }}
+                    >
+                      <label htmlFor={`rl-${r.id}`} className="mb-1.5 block text-sm font-semibold text-zinc-800">
+                        Language for their invitation
+                      </label>
+                      <select
+                        id={`rl-${r.id}`}
+                        name="language"
+                        defaultValue="en"
+                        className="block min-h-11 w-full min-w-0 rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-base text-zinc-900 shadow-sm sm:text-sm"
+                      >
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                      </select>
+                    </ActionForm>
+                    <ActionForm
+                      id={r.id}
+                      intent="decline"
+                      label="Decline request"
+                      variant="danger"
+                      guestNames={{}}
+                      action={decideRequest}
+                      confirm={{
+                        text: `Decline ${r.name}'s request?`,
+                        detail: "The request is removed and nothing is counted. This cannot be undone.",
+                      }}
+                    />
+                  </div>
                 </li>
               );
             })}
