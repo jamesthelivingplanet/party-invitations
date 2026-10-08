@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Share, Copy and sent status)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -13,3 +13,7 @@
 - [ ] The Host can skip a Guest and return to them later.
 - [ ] Usable one-handed at phone width, checked in a browser; the share sheet itself is verified on the Host's phone.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-10. /admin/invitations/send; skips ride in URL; nextUnsent on store.
