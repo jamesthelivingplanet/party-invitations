@@ -9,5 +9,6 @@ export async function POST(request: Request) {
 
   const outcome = await replyStore.submitPersonal(code, { attending, partySize });
   if (outcome === "unknown_link") return Response.json({ error: "unknown_link" }, { status: 404 });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
   return Response.json({ ok: true, attending });
 }

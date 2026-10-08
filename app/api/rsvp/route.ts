@@ -11,7 +11,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_fields" }, { status: 400 });
   }
 
-  await replyStore.submitShared({ name, relation, attending, partySize });
+  const outcome = await replyStore.submitShared({ name, relation, attending, partySize });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
 
   // Deliberately generic: never reveal who is on the guest list.
   return Response.json({ ok: true, attending });

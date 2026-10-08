@@ -1,5 +1,6 @@
 import type { Client } from "@libsql/client";
 import { ensureRsvpSchema } from "./db";
+import { replyDeadlinePassed, type EventSettings } from "./event";
 import type { Guest } from "./guests";
 import type { JevAnswer } from "./match";
 
@@ -16,7 +17,7 @@ export const SOFT_THRESHOLD = 0.15;
 
 export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number };
 export type PersonalReply = { attending: boolean; partySize: number };
-export type SubmitOutcome = "confirmed" | "review" | "no_match";
+export type SubmitOutcome = "confirmed" | "review" | "no_match" | "closed";
 
 export type Reply = {
   id: number;
@@ -84,7 +85,16 @@ function decide(answer: JevAnswer): { guestId: string | null; confidence: number
   return { guestId: null, confidence, status: "unmatched" };
 }
 
-export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev }) {
+type Event = { get(): Promise<EventSettings> };
+
+/**
+ * `event` and `now` decide the Reply deadline; the clock comes from outside so it can be controlled.
+ * Without `event`, Replies are always open.
+ */
+export function createReplyStore(
+  db: Client,
+  deps: { guests: Guests; jev: Jev; event?: Event; now?: () => Date },
+) {
   let ready: Promise<void> | null = null;
   const ensure = () => (ready ??= ensureRsvpSchema(db));
 
@@ -94,8 +104,15 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
   }
 
   return {
+    /** Whether Replies can still be sent or changed (the admin is never restricted). */
+    async repliesOpen(): Promise<boolean> {
+      if (!deps.event) return true;
+      return !replyDeadlinePassed(await deps.event.get(), (deps.now ?? (() => new Date()))());
+    },
+
     /** A reply sent through the Shared link: Jev tries to match it to a guest. */
     async submitShared(reply: SharedReply): Promise<SubmitOutcome> {
+      if (!(await this.repliesOpen())) return "closed";
       let match: ReturnType<typeof decide> = { guestId: null, confidence: 0, status: "review" };
       try {
         match = decide(await deps.jev(reply, await deps.guests.list()));
@@ -128,9 +145,10 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
     },
 
     /** A Reply through a Personal link: the code says who is replying, so no Match is needed. */
-    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link"> {
+    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link" | "closed"> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return "unknown_link";
+      if (!(await this.repliesOpen())) return "closed";
       await ensure();
       await db.execute({
         sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)

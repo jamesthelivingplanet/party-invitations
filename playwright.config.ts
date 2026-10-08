@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const PORT = 3100;
+const PORT = Number(process.env.E2E_PORT ?? 3100);
 
 // Browser tests run the real app on a throwaway database, with a stub in place of Jev.
 export default defineConfig({

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
 import { replyDeadlineDate } from "@/lib/event";
 import { formatDate, party } from "@/lib/party";
-import { eventStore } from "@/lib/stores";
+import { eventStore, replyStore } from "@/lib/stores";
 import RacingCar from "./racing-car";
 import LangSync from "./lang-sync";
 import RsvpForm from "./rsvp-form";
@@ -18,6 +18,7 @@ export default async function Home(props: PageProps<"/">) {
   const other = locale === "en" ? "es" : "en";
   const event = await eventStore.get();
   const deadline = replyDeadlineDate(event);
+  const open = await replyStore.repliesOpen();
 
   const rows: [string, string][] = [
     [t.date, formatDate(event.date, locale)],
@@ -61,7 +62,13 @@ export default async function Home(props: PageProps<"/">) {
         <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">
           {t.inRace}
         </h2>
-        <RsvpForm locale={locale} />
+        {open ? (
+          <RsvpForm locale={locale} />
+        ) : (
+          <p role="status" className="rounded-2xl bg-white p-6 text-xl font-extrabold text-zinc-900 shadow-xl">
+            {t.repliesClosed}
+          </p>
+        )}
       </section>
       <div className="h-7" style={{ background: checker }} />
     </main>

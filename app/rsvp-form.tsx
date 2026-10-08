@@ -27,7 +27,7 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
     if (res.ok) setState("done");
     else {
       const code = (await res.json().catch(() => null))?.error;
-      setMessage(code === "missing_fields" ? t.errMissing : t.errGeneric);
+      setMessage(code === "missing_fields" ? t.errMissing : code === "closed" ? t.repliesClosed : t.errGeneric);
       setState("error");
     }
   }

@@ -81,6 +81,14 @@ export default async function Settings(props: PageProps<"/admin/settings">) {
             </p>
           </div>
           <div className="sm:col-span-2">
+            <label htmlFor="timeZone" className={label}>Time zone</label>
+            <input id="timeZone" name="timeZone" defaultValue={event.timeZone} required maxLength={64} className={field} placeholder="America/New_York" />
+            <p className={hint}>
+              Where the event happens. Replies close at the end of the deadline day in this time zone. Use a name like
+              America/Chicago or America/Los_Angeles.
+            </p>
+          </div>
+          <div className="sm:col-span-2">
             <button className="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-zinc-700">
               Save settings
             </button>
