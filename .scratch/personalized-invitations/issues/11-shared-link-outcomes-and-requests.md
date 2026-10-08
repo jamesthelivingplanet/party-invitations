@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Replies seam: move today's behavior behind a tested module), 04 (Companions: named people, adult or child)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -17,3 +17,7 @@
 - [ ] Checked in a browser at phone width, in English and in Spanish.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-11. requests table; submitRequest/listRequests with source shared|personal_forward; no-match no longer lands in review.
