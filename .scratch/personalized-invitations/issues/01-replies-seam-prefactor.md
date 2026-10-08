@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -15,3 +15,7 @@
 - [ ] A Guest using the Shared link sees exactly what they saw before, and the admin review flow (two-step confirm, undo) still works when checked in a browser.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done in commit b966711 (Replies module with tests).
