@@ -140,6 +140,15 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
       return "recorded";
     },
 
+    /** The Reply that currently counts for the Guest behind a Personal link, or null if none yet (or unknown link). */
+    async currentForPersonalLink(code: string): Promise<PersonalReply | null> {
+      const guest = await this.guestForPersonalLink(code);
+      if (!guest) return null;
+      const { coming, declined } = await this.summary();
+      const entry = [...coming, ...declined].find((e) => e.key === guest.id);
+      return entry ? { attending: entry.reply.attending, partySize: entry.reply.partySize } : null;
+    },
+
     async assignToGuest(id: number, guestId: string) {
       if (!(await deps.guests.list()).some((g) => g.id === guestId)) throw new Error("Unknown guest");
       await setDecision(id, "decision='assigned', assigned_guest_id=?, new_guest_name=NULL", [guestId]);
