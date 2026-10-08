@@ -1,5 +1,6 @@
 import type { Client } from "@libsql/client";
 import { ensureRsvpSchema } from "./db";
+import { replyDeadlinePassed, type EventSettings } from "./event";
 import type { Guest } from "./guests";
 import type { JevAnswer } from "./match";
 
@@ -19,7 +20,7 @@ type CompanionInput = { companions?: Companion[] };
 export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number } & CompanionInput;
 export type PersonalReply = { attending: boolean; partySize: number } & CompanionInput;
 export type CompanionProblem = "companion_count" | "companion_incomplete";
-export type SubmitOutcome = "confirmed" | "review" | "no_match" | CompanionProblem;
+export type SubmitOutcome = "confirmed" | "review" | "no_match" | "closed" | CompanionProblem;
 export type RequestSource = "shared" | "personal_forward";
 export type ContactMethods = { phone?: string; email?: string; whatsapp?: string; messenger?: string; other?: string };
 export type RequestInput = {
@@ -146,7 +147,16 @@ function decide(answer: JevAnswer): { guestId: string | null; confidence: number
   return { guestId: null, confidence, status: "unmatched" };
 }
 
-export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev }) {
+type Event = { get(): Promise<EventSettings> };
+
+/**
+ * `event` and `now` decide the Reply deadline; the clock comes from outside so it can be controlled.
+ * Without `event`, Replies are always open.
+ */
+export function createReplyStore(
+  db: Client,
+  deps: { guests: Guests; jev: Jev; event?: Event; now?: () => Date },
+) {
   let ready: Promise<void> | null = null;
   const ensure = () => (ready ??= ensureRsvpSchema(db));
 
@@ -155,8 +165,14 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
     await db.execute({ sql: `UPDATE rsvps SET ${sql} WHERE id = ?`, args: [...args, id] });
   }
 
+  async function repliesOpen(): Promise<boolean> {
+    if (!deps.event) return true;
+    return !replyDeadlinePassed(await deps.event.get(), (deps.now ?? (() => new Date()))());
+  }
+
   /** Jev Matches a typed identity to a Guest; saves a confirmed or review Reply, or nothing when nobody matches. */
   async function matchAndRecord(reply: SharedReply): Promise<SubmitOutcome> {
+    if (!(await repliesOpen())) return "closed";
     const party = normalizeParty(reply);
     if (!party.ok) return party.problem;
     let match: ReturnType<typeof decide> = { guestId: null, confidence: 0, status: "review" };
@@ -187,6 +203,9 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
   }
 
   return {
+    /** Whether Replies can still be sent or changed (the admin is never restricted). */
+    repliesOpen,
+
     /** A reply sent through the Shared link: Jev tries to match it to a guest. */
     async submitShared(reply: SharedReply): Promise<SubmitOutcome> {
       return matchAndRecord(reply);
@@ -273,10 +292,11 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
     async submitPersonal(
       code: string,
       reply: PersonalReply,
-    ): Promise<"recorded" | "unknown_link" | "no_longer_available" | CompanionProblem> {
+    ): Promise<"recorded" | "unknown_link" | "no_longer_available" | "closed" | CompanionProblem> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return "unknown_link";
       if (guest.archived) return "no_longer_available";
+      if (!(await this.repliesOpen())) return "closed";
       const party = normalizeParty(reply);
       if (!party.ok) return party.problem;
       await ensure();

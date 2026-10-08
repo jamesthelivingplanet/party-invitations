@@ -18,6 +18,7 @@ export async function POST(request: Request) {
   const outcome = code ? await replyStore.submitFromPersonalLink(code, reply) : await replyStore.submitShared(reply);
   if (outcome === "unknown_link") return Response.json({ error: outcome }, { status: 404 });
   if (outcome === "no_longer_available") return Response.json({ error: outcome }, { status: 410 });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
   if (outcome === "companion_count" || outcome === "companion_incomplete") {
     return Response.json({ error: outcome }, { status: 400 });
   }

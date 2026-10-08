@@ -10,6 +10,7 @@ export async function POST(request: Request) {
 
   const outcome = await replyStore.submitPersonal(code, { attending, partySize, companions: readCompanions(body) });
   if (outcome === "unknown_link") return Response.json({ error: "unknown_link" }, { status: 404 });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
   if (outcome === "no_longer_available") return Response.json({ error: "no_longer_available" }, { status: 410 });
   if (outcome !== "recorded") return Response.json({ error: outcome }, { status: 400 });
   return Response.json({ ok: true, attending });

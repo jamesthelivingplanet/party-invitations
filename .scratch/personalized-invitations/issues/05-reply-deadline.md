@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (A Guest can change their Reply through the link)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -16,3 +16,7 @@
 - [ ] Tests at the Replies seam use a fake clock around the boundary (the last moment of the deadline day, and the first moment after it).
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-05. timeZone setting (default America/New_York); "closed" outcome; closes end of deadline day event-local.

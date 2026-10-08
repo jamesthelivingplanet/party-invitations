@@ -11,6 +11,7 @@ test("a fresh event is Alex's party on 2026-12-19 with no time, place or deadlin
     time: null,
     place: null,
     replyDeadlineDays: null,
+    timeZone: "America/New_York",
   });
 });
 
@@ -22,6 +23,7 @@ test("event settings that were saved are still there after a restart", async () 
     time: "2:00 PM - 5:00 PM",
     place: "123 Main St",
     replyDeadlineDays: 7,
+    timeZone: "America/Los_Angeles",
   });
 
   const afterRestart = await createEventStore(db).get();
@@ -32,6 +34,7 @@ test("event settings that were saved are still there after a restart", async () 
     time: "2:00 PM - 5:00 PM",
     place: "123 Main St",
     replyDeadlineDays: 7,
+    timeZone: "America/Los_Angeles",
   });
 });
 
@@ -82,6 +85,7 @@ const party = (date: string, replyDeadlineDays: number | null): EventSettings =>
   time: null,
   place: null,
   replyDeadlineDays,
+  timeZone: "America/New_York",
 });
 
 test("the reply deadline is the event date minus the deadline days", () => {
@@ -93,4 +97,12 @@ test("the reply deadline is the event date minus the deadline days", () => {
 
 test("there is no reply deadline until the days are set", () => {
   expect(replyDeadlineDate(party("2026-12-19", null))).toBeNull();
+});
+
+test("a time zone that does not exist is rejected and changes nothing", async () => {
+  const event = createEventStore(testDb());
+
+  await expect(event.update({ timeZone: "Planet/Olympus" })).rejects.toThrow(/time zone/i);
+
+  expect((await event.get()).timeZone).toBe("America/New_York");
 });

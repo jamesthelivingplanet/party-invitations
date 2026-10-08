@@ -41,7 +41,9 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
       setMessage(
         error === "missing_fields"
           ? t.errMissing
-          : error === "companion_count"
+          : error === "closed"
+            ? t.repliesClosed
+            : error === "companion_count"
             ? t.errCompanionCount
             : error === "companion_incomplete"
               ? t.errCompanionIncomplete
