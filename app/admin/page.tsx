@@ -11,6 +11,10 @@ import { Badge, Confidence, Empty, List, PartySize, Section, StatCard, When, for
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Admin", robots: { index: false } };
 
+function adultsAndChildren(adults: number, children: number, separator: string) {
+  return `${adults} ${adults === 1 ? "adult" : "adults"}${separator}${children} ${children === 1 ? "child" : "children"}`;
+}
+
 export default async function Admin() {
   await requireAdminPage();
 
@@ -45,7 +49,7 @@ export default async function Admin() {
             emphasis
             label="People coming"
             value={headcount}
-            hint={`${adults} ${adults === 1 ? "adult" : "adults"} · ${children} ${children === 1 ? "child" : "children"}`}
+            hint={adultsAndChildren(adults, children, " · ")}
             className="col-span-2 lg:col-span-1"
           />
           <StatCard label="Confirmed RSVPs" value={coming.length} hint="Guests saying yes" />
@@ -62,7 +66,7 @@ export default async function Admin() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
           <div className="min-w-0 space-y-10">
             {/* Coming */}
-            <Section title="Coming" count={coming.length} description={`${headcount} people in total: ${adults} ${adults === 1 ? "adult" : "adults"}, ${children} ${children === 1 ? "child" : "children"}.`}>
+            <Section title="Coming" count={coming.length} description={`${headcount} people in total: ${adultsAndChildren(adults, children, ", ")}.`}>
               {coming.length === 0 ? (
                 <Empty>No confirmed guests yet.</Empty>
               ) : (

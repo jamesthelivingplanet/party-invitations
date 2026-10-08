@@ -1,4 +1,6 @@
 import { readCompanions } from "@/lib/companions-input";
+import { clampPartySize } from "@/lib/party";
+import { failureStatus } from "@/lib/reply-http";
 import { replyStore } from "@/lib/stores";
 
 /** Someone the Shared link could not Match leaves their details. Saved as a Request, never as a Reply. */
@@ -9,7 +11,7 @@ export async function POST(request: Request) {
   const forwarded = !!code && !!(await replyStore.guestForPersonalLink(code));
   const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
   const attending = typeof body?.attending === "boolean" ? body.attending : null;
-  const partySize = Math.min(Math.max(Number(body?.partySize) || 1, 1), 10);
+  const partySize = clampPartySize(body?.partySize);
   const c = body?.contacts ?? {};
 
   const outcome = await replyStore.submitRequest({
@@ -27,6 +29,6 @@ export async function POST(request: Request) {
       other: text(c.other, 200),
     },
   });
-  if (outcome !== "recorded") return Response.json({ error: outcome }, { status: 400 });
+  if (outcome !== "recorded") return Response.json({ error: outcome }, { status: failureStatus(outcome) ?? 400 });
   return Response.json({ ok: true });
 }

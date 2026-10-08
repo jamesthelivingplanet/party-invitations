@@ -14,3 +14,10 @@ export function formatDate(iso: string, locale: string) {
     timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
 }
+
+export const MAX_PARTY_SIZE = 10;
+
+/** Party size from untrusted input: a whole number from 1 to MAX_PARTY_SIZE (1 when it is not a number). */
+export function clampPartySize(value: unknown) {
+  return Math.min(Math.max(Math.floor(Number(value)) || 1, 1), MAX_PARTY_SIZE);
+}

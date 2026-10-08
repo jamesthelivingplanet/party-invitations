@@ -76,7 +76,12 @@ export function createEventStore(db: Client) {
       // Databases created before the time zone setting get the column on first use.
       const { rows } = await db.execute("PRAGMA table_info(event_settings)");
       if (!rows.some((r) => r.name === "time_zone")) {
-        await db.execute("ALTER TABLE event_settings ADD COLUMN time_zone TEXT");
+        try {
+          await db.execute("ALTER TABLE event_settings ADD COLUMN time_zone TEXT");
+        } catch (err) {
+          // Another instance may have added it first.
+          if (!String(err).includes("duplicate column")) throw err;
+        }
       }
     }));
 

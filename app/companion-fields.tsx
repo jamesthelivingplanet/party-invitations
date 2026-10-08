@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { dictionaries, type Locale } from "@/lib/i18n";
+import { clampPartySize, MAX_PARTY_SIZE } from "@/lib/party";
+import type { Companion } from "@/lib/replies";
 
-type Companion = { name: string; kind: "adult" | "child" };
 
 const input =
   "mt-1 w-full rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-red-600";
@@ -29,9 +30,9 @@ export function CompanionFields({
           name="partySize"
           type="number"
           min={1}
-          max={10}
+          max={MAX_PARTY_SIZE}
           value={size}
-          onChange={(e) => setSize(Math.min(Math.max(Math.floor(Number(e.target.value)) || 1, 1), 10))}
+          onChange={(e) => setSize(clampPartySize(e.target.value))}
           className={input}
         />
       </label>

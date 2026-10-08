@@ -146,7 +146,17 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
     async regeneratePersonalLink(id: string): Promise<string> {
       await ensure();
       const code = newPersonalLinkCode();
+      const { rows } = await db.execute({ sql: "SELECT personal_link_code FROM guests WHERE id = ?", args: [id] });
       await db.execute({ sql: "UPDATE guests SET personal_link_code = ? WHERE id = ?", args: [code, id] });
+      // A saved one-off message carries the old link; point it at the new one.
+      const old = rows[0] && String(rows[0].personal_link_code);
+      const table = await db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'invitations'");
+      if (old && table.rows.length > 0) {
+        await db.execute({
+          sql: "UPDATE invitations SET message = REPLACE(message, ?, ?) WHERE guest_id = ? AND message IS NOT NULL",
+          args: [`/i/${old}`, `/i/${code}`, id],
+        });
+      }
       return code;
     },
 

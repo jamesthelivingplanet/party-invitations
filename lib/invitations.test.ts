@@ -277,3 +277,14 @@ test("a one-off message must be non-empty, not too long, keep the Guest's Person
   await expect(invitations.setMessage("gst_nope", "x")).rejects.toThrow(/guest/i);
   await expect(invitations.resetMessage("gst_nope")).rejects.toThrow(/guest/i);
 });
+
+test("regenerating a Guest's Personal link keeps their saved message carrying the live link", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await invitations.setMessage(sarah.id, `Sarah, hello! ${origin}/i/${sarah.personalLinkCode} see you`);
+
+  const fresh = await guests.regeneratePersonalLink(sarah.id);
+
+  const message = await invitations.messageFor(sarah.id, { origin });
+  expect(message).toBe(`Sarah, hello! ${origin}/i/${fresh} see you`);
+});
