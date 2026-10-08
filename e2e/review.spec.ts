@@ -3,7 +3,7 @@ import { dashboardNumbers, loginAsHost, replyOnSharedLink } from "./helpers";
 
 /** A reply that Jev can't place, with a unique phrase so each test finds its own card. */
 async function strangerReply(page: Page, marker: string, partySize = 2) {
-  await replyOnSharedLink(page, { name: "Stranger", relation: marker, coming: true, partySize });
+  await replyOnSharedLink(page, { name: "Hmm Stranger", relation: marker, coming: true, partySize });
   await loginAsHost(page);
   return page.locator("li", { hasText: marker });
 }

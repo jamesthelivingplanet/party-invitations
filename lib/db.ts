@@ -27,6 +27,24 @@ export async function ensureRsvpSchema(client: Client) {
       status TEXT NOT NULL
     )
   `);
+  // Requests: people who are not on the Guest list, with ways to reach them. Kept apart from rsvps so they never count.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      name TEXT NOT NULL,
+      attending INTEGER,
+      party_size INTEGER NOT NULL,
+      companions TEXT NOT NULL,
+      source TEXT NOT NULL,
+      own_words TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      email TEXT NOT NULL,
+      whatsapp TEXT NOT NULL,
+      messenger TEXT NOT NULL,
+      other_contact TEXT NOT NULL
+    )
+  `);
   const info = await client.execute("PRAGMA table_info(rsvps)");
   const have = new Set(info.rows.map((r) => String(r.name)));
   for (const [col, type] of LATER_COLUMNS) {

@@ -1,17 +1,22 @@
 import { expect, test } from "vitest";
 import { testDb } from "@/test/db";
 import { createGuestStore, type Guest } from "./guests";
-import { createReplyStore, type JevAnswer, type Jev, type SharedReply } from "./replies";
+import { createReplyStore, type JevAnswer, type Jev, type RequestInput, type SharedReply } from "./replies";
 
 /** A scripted Jev: answers by the name typed in the reply. Unscripted names get "nobody". */
 function scriptedJev(script: Record<string, JevAnswer>): Jev {
   return async (input) => script[input.name] ?? { picked: "none", probabilities: { none: 0.9 } };
 }
 
-async function setup(script: Record<string, JevAnswer> = {}) {
+/** A Jev that is down: every Shared-link Reply is saved for the Host to review. */
+const jevDown: Jev = async () => {
+  throw new Error("down");
+};
+
+async function setup(script: Record<string, JevAnswer> = {}, jev: Jev = scriptedJev(script)) {
   const db = testDb();
   const guests = createGuestStore(db);
-  const replies = createReplyStore(db, { guests, jev: scriptedJev(script) });
+  const replies = createReplyStore(db, { guests, jev });
   return { guests, replies };
 }
 
@@ -87,9 +92,9 @@ test("a 'nobody' answer with no plausible runner-up is no match, and still needs
 
   expect(await store.submitShared(shared("Stranger"))).toBe("no_match");
 
-  const { review } = await store.summary();
-  expect(review).toHaveLength(1);
-  expect(review[0].suggestedGuestId).toBeNull();
+  // Nothing is saved yet: the visitor is asked for their details, which become a Request.
+  expect((await store.summary()).review).toEqual([]);
+  expect(await store.listRequests()).toEqual([]);
 });
 
 test("archived guests are never offered as matches", async () => {
@@ -185,7 +190,7 @@ test("the host can assign a reply to a different guest", async () => {
   const g = createGuestStore(db);
   await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const dave = await g.add({ name: "Dave Example", language: "en", notes: "" });
-  const store = createReplyStore(db, { guests: g, jev: scriptedJev({}) });
+  const store = createReplyStore(db, { guests: g, jev: jevDown });
   await store.submitShared(shared("Dad"));
   const [pending] = (await store.summary()).review;
 
@@ -195,7 +200,7 @@ test("the host can assign a reply to a different guest", async () => {
 });
 
 test("assigning to an unknown guest is refused", async () => {
-  const { replies } = await setup();
+  const { replies } = await setup({}, jevDown);
   await replies.submitShared(shared("Dad"));
   const [pending] = (await replies.summary()).review;
 
@@ -203,7 +208,7 @@ test("assigning to an unknown guest is refused", async () => {
 });
 
 test("marking a reply not invited sets it aside, and it can be brought back", async () => {
-  const { replies } = await setup();
+  const { replies } = await setup({}, jevDown);
   await replies.submitShared(shared("Stranger"));
   const [pending] = (await replies.summary()).review;
 
@@ -221,7 +226,7 @@ test("marking a reply not invited sets it aside, and it can be brought back", as
 });
 
 test("a reply the host welcomes by name counts as coming under that name", async () => {
-  const { replies } = await setup();
+  const { replies } = await setup({}, jevDown);
   await replies.submitShared(shared("Stranger", { ...party(2) }));
   const [pending] = (await replies.summary()).review;
 
@@ -234,7 +239,7 @@ test("a reply the host welcomes by name counts as coming under that name", async
 });
 
 test("the summary counts every reply received, however it was sorted", async () => {
-  const { replies } = await setup();
+  const { replies } = await setup({}, jevDown);
   await replies.submitShared(shared("A"));
   await replies.submitShared(shared("B"));
 
@@ -467,4 +472,90 @@ test("a Reply saved before Companions existed still works and counts every perso
   expect(summary.headcount).toBe(3);
   expect(summary.adults).toBe(3);
   expect(summary.children).toBe(0);
+});
+
+const contact = { phone: "555-0100" };
+const request = (over: Partial<RequestInput> = {}): RequestInput => ({
+  name: "Pat Stranger",
+  source: "shared",
+  ownWords: "Friend of Alex's soccer coach",
+  contacts: contact,
+  ...over,
+});
+
+test("a Request keeps the answer, Party size, Companions, source, own words and contacts", async () => {
+  const { replies } = await setup();
+
+  const outcome = await replies.submitRequest(
+    request({
+      attending: true,
+      partySize: 3,
+      companions: [
+        { name: "Sam", kind: "adult" },
+        { name: "Mia", kind: "child" },
+      ],
+      contacts: { phone: "555-0100", email: "pat@example.com", whatsapp: "555-0101", messenger: "pat.s", other: "carrier pigeon" },
+    }),
+  );
+
+  expect(outcome).toBe("recorded");
+  const [r] = await replies.listRequests();
+  expect(r).toMatchObject({
+    name: "Pat Stranger",
+    attending: true,
+    partySize: 3,
+    companions: [
+      { name: "Sam", kind: "adult" },
+      { name: "Mia", kind: "child" },
+    ],
+    source: "shared",
+    ownWords: "Friend of Alex's soccer coach",
+    contacts: { phone: "555-0100", email: "pat@example.com", whatsapp: "555-0101", messenger: "pat.s", other: "carrier pigeon" },
+  });
+});
+
+test("a Request may leave the coming answer open", async () => {
+  const { replies } = await setup();
+  expect(await replies.submitRequest(request({ source: "personal_forward" }))).toBe("recorded");
+  const [r] = await replies.listRequests();
+  expect(r).toMatchObject({ attending: null, partySize: 1, companions: [], source: "personal_forward" });
+});
+
+test("a Request needs a name", async () => {
+  const { replies } = await setup();
+  expect(await replies.submitRequest(request({ name: "   " }))).toBe("name_required");
+  expect(await replies.listRequests()).toEqual([]);
+});
+
+test("a Request needs at least one way to reach the person", async () => {
+  const { replies } = await setup();
+  expect(await replies.submitRequest(request({ contacts: {} }))).toBe("contact_required");
+  expect(await replies.submitRequest(request({ contacts: { phone: "  ", email: "" } }))).toBe("contact_required");
+  expect(await replies.listRequests()).toEqual([]);
+});
+
+test("a Request that says coming must name its Companions", async () => {
+  const { replies } = await setup();
+  expect(await replies.submitRequest(request({ attending: true, partySize: 2 }))).toBe("companion_count");
+  expect(
+    await replies.submitRequest(request({ attending: true, partySize: 2, companions: [{ name: " ", kind: "adult" }] })),
+  ).toBe("companion_incomplete");
+  expect(await replies.listRequests()).toEqual([]);
+});
+
+test("Requests are not counted in the headcount or the review list", async () => {
+  const { replies } = await setup();
+  await replies.submitRequest(request({ attending: true, partySize: 1 }));
+  const s = await replies.summary();
+  expect(s.headcount).toBe(0);
+  expect(s.coming).toEqual([]);
+  expect(s.review).toEqual([]);
+  expect(s.totalReplies).toBe(0);
+});
+
+test("Requests are listed newest first", async () => {
+  const { replies } = await setup();
+  await replies.submitRequest(request({ name: "First" }));
+  await replies.submitRequest(request({ name: "Second" }));
+  expect((await replies.listRequests()).map((r) => r.name)).toEqual(["Second", "First"]);
 });

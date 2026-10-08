@@ -20,8 +20,8 @@ test("the Shared link page fits the screen and keeps its form reachable at phone
 });
 
 test("the admin dashboard fits the screen at phone and desktop width, and lays review cards out to suit", async ({ page }) => {
-  await replyOnSharedLink(page, { name: "Stranger", relation: "layout-case-one", coming: true });
-  await replyOnSharedLink(page, { name: "Stranger", relation: "layout-case-two", coming: true });
+  await replyOnSharedLink(page, { name: "Hmm Stranger", relation: "layout-case-one", coming: true });
+  await replyOnSharedLink(page, { name: "Hmm Stranger", relation: "layout-case-two", coming: true });
   await loginAsHost(page);
 
   const firstX = async () => (await page.locator("ul.grid > li", { hasText: "layout-case-one" }).boundingBox())!.x;

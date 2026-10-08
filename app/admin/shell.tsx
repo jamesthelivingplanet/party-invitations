@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 const tabs = [
   { id: "replies", href: "/admin", label: "Replies" },
+  { id: "requests", href: "/admin/requests", label: "Requests" },
   { id: "guests", href: "/admin/guests", label: "Guests" },
   { id: "invitations", href: "/admin/invitations", label: "Invitations" },
   { id: "settings", href: "/admin/settings", label: "Event settings" },

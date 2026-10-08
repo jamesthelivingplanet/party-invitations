@@ -20,6 +20,31 @@ export type SharedReply = { name: string; relation: string; attending: boolean; 
 export type PersonalReply = { attending: boolean; partySize: number } & CompanionInput;
 export type CompanionProblem = "companion_count" | "companion_incomplete";
 export type SubmitOutcome = "confirmed" | "review" | "no_match" | CompanionProblem;
+export type RequestSource = "shared" | "personal_forward";
+export type ContactMethods = { phone?: string; email?: string; whatsapp?: string; messenger?: string; other?: string };
+export type RequestInput = {
+  name: string;
+  /** Their coming answer, or left out/null if they did not give one. */
+  attending?: boolean | null;
+  partySize?: number;
+  companions?: Companion[];
+  source: RequestSource;
+  ownWords?: string;
+  contacts: ContactMethods;
+};
+export type RequestProblem = "name_required" | "contact_required" | CompanionProblem;
+/** Someone not on the Guest list, asking to be invited. Never counted in the headcount. */
+export type Request = {
+  id: number;
+  createdAt: string;
+  name: string;
+  attending: boolean | null;
+  partySize: number;
+  companions: Companion[];
+  source: RequestSource;
+  ownWords: string;
+  contacts: Required<ContactMethods>;
+};
 export type CurrentReply = { attending: boolean; partySize: number; companions: Companion[] };
 
 /**
@@ -142,6 +167,8 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
         // If Jev is unreachable, still save the reply so nothing is lost.
         console.error("Jev match failed", err);
       }
+      // Nobody on the list: nothing is saved here. The visitor is asked for their details, which become a Request.
+      if (match.status === "unmatched") return "no_match";
       await ensure();
       await db.execute({
         sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
@@ -157,7 +184,62 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
           match.status,
         ],
       });
-      return match.status === "matched" ? "confirmed" : match.status === "review" ? "review" : "no_match";
+      return match.status === "matched" ? "confirmed" : "review";
+    },
+
+    /** Someone not on the Guest list leaves their details. Needs a name and at least one way to reach them. */
+    async submitRequest(input: RequestInput): Promise<"recorded" | RequestProblem> {
+      const name = input.name.trim().slice(0, 100);
+      if (!name) return "name_required";
+      const clip = (v: string | undefined) => (v ?? "").trim().slice(0, 200);
+      const c = input.contacts ?? {};
+      const contacts = { phone: clip(c.phone), email: clip(c.email), whatsapp: clip(c.whatsapp), messenger: clip(c.messenger), other: clip(c.other) };
+      if (!Object.values(contacts).some(Boolean)) return "contact_required";
+      const attending = input.attending ?? null;
+      const party = normalizeParty({ attending: attending === true, partySize: input.partySize ?? 1, companions: input.companions });
+      if (!party.ok) return party.problem;
+      await ensure();
+      await db.execute({
+        sql: `INSERT INTO requests (name, attending, party_size, companions, source, own_words, phone, email, whatsapp, messenger, other_contact)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          name,
+          attending === null ? null : attending ? 1 : 0,
+          party.partySize,
+          JSON.stringify(party.companions),
+          input.source,
+          (input.ownWords ?? "").trim().slice(0, 1000),
+          contacts.phone,
+          contacts.email,
+          contacts.whatsapp,
+          contacts.messenger,
+          contacts.other,
+        ],
+      });
+      return "recorded";
+    },
+
+    /** Every Request, newest first. */
+    async listRequests(): Promise<Request[]> {
+      await ensure();
+      const rows = (await db.execute("SELECT * FROM requests ORDER BY id DESC")).rows;
+      return rows.map((r) => ({
+        id: Number(r.id),
+        createdAt: String(r.created_at),
+        name: String(r.name),
+        attending: r.attending === null ? null : !!r.attending,
+        partySize: Number(r.party_size),
+        companions: parseCompanions(String(r.companions)),
+        source: String(r.source) as RequestSource,
+        ownWords: String(r.own_words),
+        contacts: {
+          phone: String(r.phone),
+          email: String(r.email),
+          whatsapp: String(r.whatsapp),
+          messenger: String(r.messenger),
+          other: String(r.other_contact),
+        },
+      }));
     },
 
     /** The Guest a Personal link was made for (archived Guests included, see `archived`), or null for an unknown code. */

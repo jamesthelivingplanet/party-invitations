@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { requireAdminPage } from "@/lib/admin-auth";
 import type { Guest } from "@/lib/guests";
@@ -13,7 +14,7 @@ export const metadata = { title: "Admin", robots: { index: false } };
 export default async function Admin() {
   await requireAdminPage();
 
-  const [summary, event] = await Promise.all([replyStore.summary(), eventStore.get()]);
+  const [summary, event, requests] = await Promise.all([replyStore.summary(), eventStore.get(), replyStore.listRequests()]);
   const { guests, coming, declined, noReply, review, dismissed, headcount, adults, children, totalReplies } = summary;
   const now = new Date();
 
@@ -30,6 +31,11 @@ export default async function Admin() {
           <p className="text-sm text-zinc-600">
             {guests.length} invited · {totalReplies} {totalReplies === 1 ? "reply" : "replies"} received · as of{" "}
             {formatAbsolute(now)}
+          </p>
+          <p className="text-sm">
+            <Link href="/admin/requests" className="font-semibold text-red-700 underline">
+              {requests.length} {requests.length === 1 ? "request" : "requests"} from people not on the list
+            </Link>
           </p>
         </header>
 

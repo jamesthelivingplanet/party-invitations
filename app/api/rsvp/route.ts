@@ -17,6 +17,6 @@ export async function POST(request: Request) {
     return Response.json({ error: outcome }, { status: 400 });
   }
 
-  // Deliberately generic: never reveal who is on the guest list.
-  return Response.json({ ok: true, attending });
+  // Never names a Guest: only how sure the Match was.
+  return Response.json({ ok: true, attending, outcome });
 }
