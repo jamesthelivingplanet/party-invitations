@@ -63,3 +63,32 @@ test("the Host copies a message, the Guest shows as Sent, can be toggled, and Re
   await page.getByRole("link", { name: "Not replied" }).click();
   await expect(page.locator("li[data-guest='Zelda Enviada']")).toHaveCount(0);
 });
+
+test("the Host edits one Guest's message, it is saved for Copy, and reset restores the main message", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await loginAsHost(page);
+  await page.goto("/admin/guests");
+  await page.fill("#new-name", "Yara Unica");
+  await page.getByRole("button", { name: "Add guest" }).click();
+
+  await page.goto("/admin/invitations");
+  const row = page.locator("li[data-guest='Yara Unica']");
+  await row.getByText("Edit message").click();
+  const box = row.locator("textarea");
+  const original = await box.inputValue();
+  await box.fill(original.replace("Hi Yara Unica!", "Yara, special you!"));
+  await row.getByRole("button", { name: "Save for Yara Unica only" }).click();
+  await expect(page.getByText("Message saved for this Guest only.")).toBeVisible();
+  await expect(row.getByTestId("edited")).toBeVisible();
+
+  await row.getByRole("button", { name: "Copy message" }).click();
+  await expect(row.getByTestId("status")).toHaveText("Sent");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Yara, special you!");
+
+  await row.getByText("Edit message").click();
+  await row.getByRole("button", { name: "Reset to main message" }).click();
+  await expect(page.getByText("Message reset to the main message.")).toBeVisible();
+  await expect(row.getByTestId("edited")).toHaveCount(0);
+  await row.getByRole("button", { name: "Copy message" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Hi Yara Unica!");
+});

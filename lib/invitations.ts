@@ -13,6 +13,8 @@ export type InvitationRow = {
   status: InvitationStatus;
   /** When the Host last shared or copied it (ISO time), or null when not marked sent. */
   sentAt: string | null;
+  /** True when the Host has edited this Guest's message by hand (a one-off edit saved with the Invitation). */
+  hasCustomMessage: boolean;
 };
 
 export class ValidationError extends Error {}
@@ -90,16 +92,23 @@ export function createInvitationStore(
   const now = deps.now ?? (() => new Date());
   let ready: Promise<unknown> | null = null;
   const ensure = () =>
-    (ready ??= db.batch([
+    (ready ??= migrate());
+  const migrate = async () => {
+    await db.batch([
       `CREATE TABLE IF NOT EXISTS invitation_templates (
         language TEXT PRIMARY KEY,
         body TEXT NOT NULL
       )`,
       `CREATE TABLE IF NOT EXISTS invitations (
         guest_id TEXT PRIMARY KEY,
-        sent_at TEXT
+        sent_at TEXT,
+        message TEXT
       )`,
-    ]));
+    ]);
+    // Databases created before one-off edits lack the column.
+    const { rows } = await db.execute("PRAGMA table_info(invitations)");
+    if (!rows.some((r) => r.name === "message")) await db.execute("ALTER TABLE invitations ADD COLUMN message TEXT");
+  };
 
   async function getTemplate(language: Language): Promise<string> {
     cleanLanguage(language);
@@ -111,6 +120,12 @@ export function createInvitationStore(
     return rows[0] ? String(rows[0].body) : startingTemplates[language];
   }
 
+  async function requireGuest(guestId: string) {
+    const guest = (await deps.guests.list({ includeArchived: true })).find((g) => g.id === guestId);
+    if (!guest) throw new Error("No such guest.");
+    return guest;
+  }
+
   return {
     getTemplate,
 
@@ -119,8 +134,9 @@ export function createInvitationStore(
       await ensure();
       const summary = await deps.replies.summary();
       const replied = new Set([...summary.coming, ...summary.declined].map((e) => e.key));
-      const { rows } = await db.execute("SELECT guest_id, sent_at FROM invitations");
+      const { rows } = await db.execute("SELECT guest_id, sent_at, message FROM invitations");
       const sentAt = new Map(rows.map((r) => [String(r.guest_id), r.sent_at == null ? null : String(r.sent_at)]));
+      const custom = new Set(rows.filter((r) => r.message != null).map((r) => String(r.guest_id)));
       const all = summary.guests.map((g): InvitationRow => {
         const at = sentAt.get(g.id) ?? null;
         return {
@@ -129,6 +145,7 @@ export function createInvitationStore(
           language: g.language,
           status: replied.has(g.id) ? "replied" : at ? "sent" : "not_sent",
           sentAt: at,
+          hasCustomMessage: custom.has(g.id),
         };
       });
       return opts.notReplied ? all.filter((r) => r.status !== "replied") : all;
@@ -147,6 +164,33 @@ export function createInvitationStore(
       });
     },
 
+    /**
+     * Save a one-off message for this Guest only. It is the finished text (no placeholders) and is what
+     * messageFor returns until reset. It must still contain the Guest's Personal link.
+     */
+    async setMessage(guestId: string, text: string): Promise<void> {
+      const guest = await requireGuest(guestId);
+      const body = text.trim();
+      if (!body) throw new ValidationError("A message needs some text.");
+      if (body.length > MAX_TEMPLATE) throw new ValidationError(`A message can be at most ${MAX_TEMPLATE} characters.`);
+      if (!body.includes(`/i/${guest.personalLinkCode}`)) {
+        throw new ValidationError("The message must include this Guest's Personal link, or they cannot reply.");
+      }
+      await ensure();
+      await db.execute({
+        sql: `INSERT INTO invitations (guest_id, message) VALUES (?, ?)
+              ON CONFLICT(guest_id) DO UPDATE SET message = excluded.message`,
+        args: [guestId, body],
+      });
+    },
+
+    /** Drop the one-off message so this Guest's message is built from the main template again. */
+    async resetMessage(guestId: string): Promise<void> {
+      await requireGuest(guestId);
+      await ensure();
+      await db.execute({ sql: "UPDATE invitations SET message = NULL WHERE guest_id = ?", args: [guestId] });
+    },
+
     async setTemplate(language: Language, text: string): Promise<void> {
       cleanLanguage(language);
       const body = cleanTemplate(text);
@@ -158,10 +202,15 @@ export function createInvitationStore(
       });
     },
 
-    /** The finished message for one Guest, in their language, with every placeholder filled. */
+    /**
+     * The message to send to one Guest. Contract: the Guest's saved one-off message when there is one
+     * (returned as saved), otherwise the template for their language with every placeholder filled.
+     */
     async messageFor(guestId: string, opts: { origin: string }): Promise<string> {
-      const guest = (await deps.guests.list({ includeArchived: true })).find((g) => g.id === guestId);
-      if (!guest) throw new Error("No such guest.");
+      const guest = await requireGuest(guestId);
+      await ensure();
+      const saved = await db.execute({ sql: "SELECT message FROM invitations WHERE guest_id = ?", args: [guestId] });
+      if (saved.rows[0]?.message != null) return String(saved.rows[0].message);
       const event = await deps.event.get();
       const template = await getTemplate(guest.language);
       const deadline = replyDeadlineDate(event);
