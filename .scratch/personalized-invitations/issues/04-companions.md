@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (A Guest can change their Reply through the link)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -17,3 +17,7 @@
 - [ ] Existing Replies (which have no Companions) keep working.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-04. Companions JSON column; errors companion_count/companion_incomplete; shared form fields in app/companion-fields.tsx.
