@@ -2,6 +2,18 @@ import type { Client } from "@libsql/client";
 import { replyDeadlineDate, type createEventStore } from "./event";
 import type { createGuestStore, Language } from "./guests";
 import { formatDate } from "./party";
+import type { createReplyStore } from "./replies";
+
+export type InvitationStatus = "not_sent" | "sent" | "replied";
+export type InvitationRow = {
+  guestId: string;
+  name: string;
+  language: Language;
+  /** Replied (from the Guest's Reply) wins over Sent; Sent is the Host's own record. */
+  status: InvitationStatus;
+  /** When the Host last shared or copied it (ISO time), or null when not marked sent. */
+  sentAt: string | null;
+};
 
 export class ValidationError extends Error {}
 
@@ -64,20 +76,30 @@ function cleanLanguage(language: string): Language {
 
 /**
  * Invitations: the main template per language and the message built for each Guest.
- * Later tickets add one-off edits and sent status here.
+ * Also the sent status of each Guest's Invitation. Later tickets add one-off edits here.
  */
 export function createInvitationStore(
   db: Client,
-  deps: { guests: ReturnType<typeof createGuestStore>; event: ReturnType<typeof createEventStore> },
+  deps: {
+    guests: ReturnType<typeof createGuestStore>;
+    event: ReturnType<typeof createEventStore>;
+    replies: Pick<ReturnType<typeof createReplyStore>, "summary">;
+    now?: () => Date;
+  },
 ) {
+  const now = deps.now ?? (() => new Date());
   let ready: Promise<unknown> | null = null;
   const ensure = () =>
-    (ready ??= db.execute(`
-      CREATE TABLE IF NOT EXISTS invitation_templates (
+    (ready ??= db.batch([
+      `CREATE TABLE IF NOT EXISTS invitation_templates (
         language TEXT PRIMARY KEY,
         body TEXT NOT NULL
-      )
-    `));
+      )`,
+      `CREATE TABLE IF NOT EXISTS invitations (
+        guest_id TEXT PRIMARY KEY,
+        sent_at TEXT
+      )`,
+    ]));
 
   async function getTemplate(language: Language): Promise<string> {
     cleanLanguage(language);
@@ -91,6 +113,39 @@ export function createInvitationStore(
 
   return {
     getTemplate,
+
+    /** Every active Guest with their language and Invitation status; optionally only those who have not replied. */
+    async overview(opts: { notReplied?: boolean } = {}): Promise<InvitationRow[]> {
+      await ensure();
+      const summary = await deps.replies.summary();
+      const replied = new Set([...summary.coming, ...summary.declined].map((e) => e.key));
+      const { rows } = await db.execute("SELECT guest_id, sent_at FROM invitations");
+      const sentAt = new Map(rows.map((r) => [String(r.guest_id), r.sent_at == null ? null : String(r.sent_at)]));
+      const all = summary.guests.map((g): InvitationRow => {
+        const at = sentAt.get(g.id) ?? null;
+        return {
+          guestId: g.id,
+          name: g.name,
+          language: g.language,
+          status: replied.has(g.id) ? "replied" : at ? "sent" : "not_sent",
+          sentAt: at,
+        };
+      });
+      return opts.notReplied ? all.filter((r) => r.status !== "replied") : all;
+    },
+
+    /** Record that the Host shared or copied the Invitation (with the time), or clear it by hand. */
+    async setSent(guestId: string, sent: boolean): Promise<void> {
+      if (!(await deps.guests.list({ includeArchived: true })).some((g) => g.id === guestId)) {
+        throw new Error("No such guest.");
+      }
+      await ensure();
+      await db.execute({
+        sql: `INSERT INTO invitations (guest_id, sent_at) VALUES (?, ?)
+              ON CONFLICT(guest_id) DO UPDATE SET sent_at = excluded.sent_at`,
+        args: [guestId, sent ? now().toISOString() : null],
+      });
+    },
 
     async setTemplate(language: Language, text: string): Promise<void> {
       cleanLanguage(language);

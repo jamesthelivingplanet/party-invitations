@@ -13,11 +13,11 @@ export default defineConfig({
     launchOptions: { executablePath: process.env.CHROMIUM_PATH },
   },
   webServer: {
-    command: `rm -f e2e.db e2e.db-* && npx next dev --port ${PORT}`,
+    command: `rm -f ${process.env.E2E_DB ?? "e2e.db"} ${process.env.E2E_DB ?? "e2e.db"}-* && npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
     env: {
-      TURSO_DATABASE_URL: "file:e2e.db",
+      TURSO_DATABASE_URL: `file:${process.env.E2E_DB ?? "e2e.db"}`,
       TURSO_AUTH_TOKEN: "",
       ADMIN_PASSWORD: "e2e-password",
       TYPESAFE_API_KEY: "unused-with-fake-jev",

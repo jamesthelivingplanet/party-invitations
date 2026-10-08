@@ -3,6 +3,7 @@ import { testDb } from "@/test/db";
 import { createEventStore } from "./event";
 import { createGuestStore } from "./guests";
 import { createInvitationStore, ValidationError } from "./invitations";
+import { createReplyStore } from "./replies";
 
 const origin = "https://party.example";
 
@@ -10,8 +11,10 @@ function setup() {
   const db = testDb();
   const guests = createGuestStore(db);
   const event = createEventStore(db);
-  const invitations = createInvitationStore(db, { guests, event });
-  return { guests, event, invitations };
+  const clock = { now: new Date("2026-11-01T10:00:00Z") };
+  const replies = createReplyStore(db, { guests, jev: async () => ({ picked: "none", probabilities: { none: 1 } }) });
+  const invitations = createInvitationStore(db, { guests, event, replies, now: () => clock.now });
+  return { guests, event, invitations, replies, clock };
 }
 
 test("starting wording exists in both languages and mentions the placeholders that matter", async () => {
@@ -70,8 +73,8 @@ test("a saved template persists and changes later messages", async () => {
   const guests = createGuestStore(db);
   const event = createEventStore(db);
   const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
-  await createInvitationStore(db, { guests, event }).setTemplate("en", "First {name} {link}");
-  const invitations = createInvitationStore(db, { guests, event });
+  await createInvitationStore(db, { guests, event, replies: createReplyStore(db, { guests, jev: async () => ({ picked: "none", probabilities: { none: 1 } }) }) }).setTemplate("en", "First {name} {link}");
+  const invitations = createInvitationStore(db, { guests, event, replies: createReplyStore(db, { guests, jev: async () => ({ picked: "none", probabilities: { none: 1 } }) }) });
   expect(await invitations.messageFor(sarah.id, { origin })).toBe(`First Sarah ${origin}/i/${sarah.personalLinkCode}`);
 
   await invitations.setTemplate("en", "Second {name} {link}");
@@ -107,4 +110,76 @@ test("a message for an unknown Guest is refused", async () => {
   const { invitations } = setup();
 
   await expect(invitations.messageFor("gst_nope", { origin })).rejects.toThrow(/guest/i);
+});
+
+test("the list shows every active Guest with their language, Not sent until the Host shares", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  const gone = await guests.add({ name: "Gone", language: "en", notes: "" });
+  await guests.archive(gone.id);
+
+  const rows = await invitations.overview();
+
+  expect(rows.map((r) => [r.guestId, r.name, r.language, r.status, r.sentAt])).toEqual([
+    [sarah.id, "Sarah", "en", "not_sent", null],
+    [pedro.id, "Pedro", "es", "not_sent", null],
+  ]);
+});
+
+test("marking an Invitation sent records when, and the Host can toggle it back by hand", async () => {
+  const { guests, invitations } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+
+  await invitations.setSent(sarah.id, true);
+  expect((await invitations.overview())[0]).toMatchObject({ status: "sent", sentAt: "2026-11-01T10:00:00.000Z" });
+
+  await invitations.setSent(sarah.id, false);
+  expect((await invitations.overview())[0]).toMatchObject({ status: "not_sent", sentAt: null });
+
+  await invitations.setSent(sarah.id, true);
+  expect((await invitations.overview())[0].status).toBe("sent");
+});
+
+test("sent status survives a restart, and an unknown Guest is refused", async () => {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const event = createEventStore(db);
+  const replies = createReplyStore(db, { guests, jev: async () => ({ picked: "none", probabilities: { none: 1 } }) });
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  await createInvitationStore(db, { guests, event, replies }).setSent(sarah.id, true);
+
+  const again = createInvitationStore(db, { guests, event, replies });
+
+  expect((await again.overview())[0].status).toBe("sent");
+  await expect(again.setSent("gst_nope", true)).rejects.toThrow(/guest/i);
+});
+
+test("a Guest who has replied shows Replied, whether or not the Invitation was marked sent", async () => {
+  const { guests, invitations, replies } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  await invitations.setSent(sarah.id, true);
+
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 2 });
+  await replies.submitPersonal(pedro.personalLinkCode, { attending: false, partySize: 1 });
+
+  expect((await invitations.overview()).map((r) => r.status)).toEqual(["replied", "replied"]);
+});
+
+test("the not-replied filter leaves out Guests who have replied", async () => {
+  const { guests, invitations, replies } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  await invitations.setSent(pedro.id, true);
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 });
+
+  const rows = await invitations.overview({ notReplied: true });
+
+  expect(rows.map((r) => [r.name, r.status])).toEqual([
+    ["Pedro", "sent"],
+    ["Ana", "not_sent"],
+  ]);
+  expect(ana.id).toBeTruthy();
 });

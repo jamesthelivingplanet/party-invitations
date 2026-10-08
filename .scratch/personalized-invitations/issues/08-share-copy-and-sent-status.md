@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 (Invitation templates and message preview)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -16,3 +16,7 @@
 - [ ] Tests at the Invitations seam cover sent status, the toggle, and Replied being reflected. The share sheet itself is verified on the Host's phone, not in unit tests.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-08. overview/setSent on Invitations store; Share/Copy buttons; reshare updates sent time. Known e2e flake: shared-link "counted as declined" after personal-link spec on shared e2e.db.

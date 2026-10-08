@@ -26,3 +26,40 @@ test("the Host edits a template and the preview for a Spanish Guest follows it",
   await page.getByRole("button", { name: "Save Spanish message" }).click();
   await expect(page.locator("p[role=alert]")).toContainText("{link}");
 });
+
+test("the Host copies a message, the Guest shows as Sent, can be toggled, and Replied follows their Reply", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await loginAsHost(page);
+  await page.goto("/admin/guests");
+  await page.fill("#new-name", "Zelda Enviada");
+  await page.getByRole("button", { name: "Add guest" }).click();
+
+  await page.goto("/admin/invitations");
+  const row = page.locator("li[data-guest='Zelda Enviada']");
+  await expect(row.getByTestId("status")).toHaveText("Not sent");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+
+  await row.getByRole("button", { name: "Copy message" }).click();
+  await expect(row.getByTestId("status")).toHaveText("Sent");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Zelda Enviada");
+
+  await row.getByRole("button", { name: "Mark not sent" }).click();
+  await expect(row.getByTestId("status")).toHaveText("Not sent");
+  await row.getByRole("button", { name: "Mark sent" }).click();
+  await expect(row.getByTestId("status")).toHaveText("Sent");
+
+  await page.goto("/admin/guests");
+  const personal = await page.locator("li", { hasText: "Zelda Enviada" }).first().locator("[data-personal-path]").getAttribute("data-personal-path");
+  await page.goto("/admin/invitations");
+  await page.getByRole("link", { name: "Not replied" }).click();
+  await expect(page.locator("li[data-guest='Zelda Enviada']")).toBeVisible();
+
+  await page.goto(`${personal}?lang=en`);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.getByRole("button", { name: "Send reply" }).click();
+
+  await page.goto("/admin/invitations");
+  await expect(page.locator("li[data-guest='Zelda Enviada']").getByTestId("status")).toHaveText("Replied");
+  await page.getByRole("link", { name: "Not replied" }).click();
+  await expect(page.locator("li[data-guest='Zelda Enviada']")).toHaveCount(0);
+});

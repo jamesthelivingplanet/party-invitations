@@ -21,3 +21,16 @@ export async function saveTemplate(data: FormData) {
   revalidatePath("/admin/invitations");
   redirect(back(`saved=${language}`));
 }
+
+/** Called after the Host shares or copies a message. */
+export async function markSent(guestId: string, sent: boolean) {
+  await requireAdminAction();
+  await invitationStore.setSent(guestId, sent);
+  revalidatePath("/admin/invitations");
+}
+
+export async function toggleSent(data: FormData) {
+  await requireAdminAction();
+  await invitationStore.setSent(String(data.get("guest") ?? ""), data.get("sent") === "1");
+  revalidatePath("/admin/invitations");
+}
