@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { testDb } from "@/test/db";
+import { createEventStore } from "./event";
 import { createGuestStore, type Guest } from "./guests";
 import { createReplyStore, type JevAnswer, type Jev, type RequestInput, type SharedReply } from "./replies";
 
@@ -364,6 +365,70 @@ test("changing from coming to not coming removes the Guest from the headcount", 
   expect(summary.declined.map((e) => e.name)).toEqual(["Sarah Johnson"]);
 });
 
+// Reply deadline: event 2026-12-19 minus 7 days = 2026-12-12, closing at the end of that day in New York (UTC-5 in December).
+async function withDeadline(days: number | null, nowIso: string, jev: Jev = scriptedJev({})) {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const event = createEventStore(db);
+  await event.update({ date: "2026-12-19", replyDeadlineDays: days, timeZone: "America/New_York" });
+  const clock = { now: new Date(nowIso) };
+  const replies = createReplyStore(db, { guests, jev, event, now: () => clock.now });
+  const guest = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  return { replies, guest, guests, clock };
+}
+const tom = { name: "Tom", kind: "adult" as const };
+const LAST_MOMENT = "2026-12-13T04:59:59.999Z"; // 23:59:59.999 on Dec 12 in New York
+const FIRST_AFTER = "2026-12-13T05:00:00.000Z"; // 00:00:00 on Dec 13 in New York
+
+test("a Personal link Reply is accepted at the last moment of the deadline day", async () => {
+  const { replies, guest } = await withDeadline(7, LAST_MOMENT);
+
+  expect(await replies.submitPersonal(guest.personalLinkCode, { attending: true, partySize: 2, companions: [tom] })).toBe("recorded");
+  expect(await replies.repliesOpen()).toBe(true);
+});
+
+test("a Personal link Reply is refused from the first moment after the deadline day, and the earlier Reply stands", async () => {
+  const { replies, guest, clock } = await withDeadline(7, LAST_MOMENT);
+  await replies.submitPersonal(guest.personalLinkCode, { attending: true, partySize: 2, companions: [tom] });
+  clock.now = new Date(FIRST_AFTER);
+
+  expect(await replies.submitPersonal(guest.personalLinkCode, { attending: false, partySize: 1 })).toBe("closed");
+
+  expect(await replies.repliesOpen()).toBe(false);
+  expect(await replies.currentForPersonalLink(guest.personalLinkCode)).toEqual({ attending: true, partySize: 2, companions: [tom] });
+});
+
+test("a Shared link Reply is accepted on the last moment and refused after the deadline", async () => {
+  const open = await withDeadline(7, LAST_MOMENT);
+  expect(await open.replies.submitShared(shared("Anyone"))).not.toBe("closed");
+
+  const closed = await withDeadline(7, FIRST_AFTER);
+  expect(await closed.replies.submitShared(shared("Anyone"))).toBe("closed");
+  expect((await closed.replies.summary()).totalReplies).toBe(0);
+});
+
+test("with no deadline set, Replies are always accepted", async () => {
+  const { replies, guest } = await withDeadline(null, "2030-01-01T00:00:00Z");
+
+  expect(await replies.repliesOpen()).toBe(true);
+  expect(await replies.submitPersonal(guest.personalLinkCode, { attending: true, partySize: 1 })).toBe("recorded");
+});
+
+test("the Host can still assign a Reply after the deadline", async () => {
+  const unreachable: Jev = async () => {
+    throw new Error("down");
+  };
+  const { replies, guests, clock } = await withDeadline(7, LAST_MOMENT, unreachable);
+  const tom = await guests.add({ name: "Tom", language: "en", notes: "" });
+  await replies.submitShared(shared("Unknown person"));
+  const [pending] = (await replies.summary()).review;
+  clock.now = new Date(FIRST_AFTER);
+
+  await replies.assignToGuest(pending.id, tom.id);
+
+  expect((await replies.summary()).coming.map((e) => e.name)).toEqual(["Tom"]);
+});
+
 const adult = (name: string) => ({ name, kind: "adult" as const });
 const child = (name: string) => ({ name, kind: "child" as const });
 type PersonalInput = Parameters<Awaited<ReturnType<typeof setup>>["replies"]["submitPersonal"]>[1];
@@ -628,4 +693,82 @@ test("a Request that is already gone cannot be accepted or declined again", asyn
   expect(await replies.acceptRequest(req.id, "en")).toBe("not_found");
   expect(await replies.declineRequest(req.id)).toBe("not_found");
   expect(await guests.list()).toHaveLength(1);
+});
+
+// "Not [name]?" on a Personal link
+const notMe = (name: string, over: Partial<SharedReply> = {}) => shared(name, over);
+
+test("Not [name]?: matching another guest records their reply and leaves the link owner's reply untouched", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const other = await g.add({ name: "Emma Rodriguez", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: sure(other) }) });
+  await store.submitPersonal(owner.personalLinkCode, { attending: true, ...party(2) });
+
+  const outcome = await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }));
+
+  expect(outcome).toBe("confirmed");
+  expect(await store.currentForPersonalLink(owner.personalLinkCode)).toEqual({
+    attending: true,
+    partySize: 2,
+    companions: [{ name: "Guest 2", kind: "adult" }],
+  });
+  const summary = await store.summary();
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.declined.map((e) => e.name)).toEqual(["Emma Rodriguez"]);
+});
+
+test("Not [name]?: identifying as the link's own guest records the reply for that guest", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(owner) }) });
+
+  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Sarah", { ...party(2) }))).toBe("confirmed");
+  expect((await store.summary()).coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+});
+
+test("Not [name]?: an unsure match goes to review and does not touch the link owner's reply", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const other = await g.add({ name: "Emma Rodriguez", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: unsure(other) }) });
+  await store.submitPersonal(owner.personalLinkCode, { attending: true, partySize: 1 });
+
+  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }))).toBe("review");
+
+  const summary = await store.summary();
+  expect(summary.review.map((r) => r.suggestedGuestName)).toEqual(["Emma Rodriguez"]);
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.declined).toEqual([]);
+});
+
+test("Not [name]?: nobody matched saves nothing and the visitor can leave a Request from a forwarded link", async () => {
+  const { guests, replies } = await setup();
+  const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Stranger"))).toBe("no_match");
+  expect((await replies.summary()).totalReplies).toBe(0);
+
+  const input: RequestInput = { name: "Stranger", source: "personal_forward", contacts: { phone: "555" } };
+  expect(await replies.submitRequest(input)).toBe("recorded");
+  expect((await replies.listRequests())[0].source).toBe("personal_forward");
+});
+
+test("Not [name]?: unknown, archived and badly formed are refused", async () => {
+  const { guests, replies } = await setup();
+  const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  expect(await replies.submitFromPersonalLink("nope", notMe("Emma"))).toBe("unknown_link");
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { partySize: 3 }))).toBe("companion_count");
+  await guests.archive(owner.id);
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma"))).toBe("no_longer_available");
+});
+
+test("Not [name]? follows the Reply deadline too", async () => {
+  const closed = await withDeadline(7, FIRST_AFTER);
+  const owner = await closed.guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  expect(await closed.replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Anyone"))).toBe("closed");
+  expect((await closed.replies.summary()).totalReplies).toBe(0);
 });

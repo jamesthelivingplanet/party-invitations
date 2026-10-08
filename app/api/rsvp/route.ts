@@ -12,7 +12,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_fields" }, { status: 400 });
   }
 
-  const outcome = await replyStore.submitShared({ name, relation, attending, partySize, companions: readCompanions(body) });
+  const reply = { name, relation, attending, partySize, companions: readCompanions(body) };
+  // A forwarded Personal link ("Not [name]?") goes through the same Matching; the code only has to be a live link.
+  const code = typeof body?.code === "string" ? body.code.slice(0, 200) : "";
+  const outcome = code ? await replyStore.submitFromPersonalLink(code, reply) : await replyStore.submitShared(reply);
+  if (outcome === "unknown_link") return Response.json({ error: outcome }, { status: 404 });
+  if (outcome === "no_longer_available") return Response.json({ error: outcome }, { status: 410 });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
   if (outcome === "companion_count" || outcome === "companion_incomplete") {
     return Response.json({ error: outcome }, { status: 400 });
   }

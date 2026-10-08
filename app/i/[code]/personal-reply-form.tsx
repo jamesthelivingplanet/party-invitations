@@ -2,21 +2,41 @@
 
 import { useState } from "react";
 import { CompanionFields, readParty } from "@/app/companion-fields";
+import RsvpForm from "@/app/rsvp-form";
 import { dictionaries, type Locale } from "@/lib/i18n";
+
+/** The Guest's Reply, read-only, once the Reply deadline has passed. */
+export function ClosedReply({ locale, current }: { locale: Locale; current: { attending: boolean; partySize: number } | null }) {
+  const t = dictionaries[locale];
+  return (
+    <div role="status" className="rounded-2xl bg-white p-6 text-center text-zinc-900 shadow-xl">
+      <h3 className="text-xl font-extrabold">{t.repliesClosed}</h3>
+      <p className="mt-2 text-zinc-600">{t.repliesClosedNote}</p>
+      <p className="mt-4 font-bold">{t.yourReply}</p>
+      <p data-testid="closed-reply">
+        {current ? (current.attending ? t.yourReplyYes(current.partySize) : t.yourReplyNo) : t.yourReplyNone}
+      </p>
+    </div>
+  );
+}
 
 export default function PersonalReplyForm({
   code,
+  guestName,
   locale,
   current,
 }: {
   code: string;
+  guestName: string;
   locale: Locale;
   current: { attending: boolean; partySize: number; companions: { name: string; kind: "adult" | "child" }[] } | null;
 }) {
   const t = dictionaries[locale];
   const [attending, setAttending] = useState<boolean | null>(current?.attending ?? null);
+  const [closed, setClosed] = useState(false);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [notMe, setNotMe] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,6 +52,7 @@ export default function PersonalReplyForm({
       if (res.ok) setState("done");
       else {
         const error = (await res.json().catch(() => null))?.error;
+        if (error === "closed") setClosed(true);
         setMessage(error === "companion_count" ? t.errCompanionCount : error === "companion_incomplete" ? t.errCompanionIncomplete : t.errGeneric);
         setState("error");
       }
@@ -39,6 +60,15 @@ export default function PersonalReplyForm({
       setMessage(t.errGeneric);
       setState("error");
     }
+  }
+
+  if (notMe) {
+    return (
+      <div className="space-y-4">
+        <p className="text-zinc-300">{t.notYouIntro}</p>
+        <RsvpForm locale={locale} code={code} />
+      </div>
+    );
   }
 
   if (state === "done") {
@@ -50,6 +80,8 @@ export default function PersonalReplyForm({
       </div>
     );
   }
+
+  if (closed) return <ClosedReply locale={locale} current={current} />;
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-2xl bg-white p-6 text-zinc-900 shadow-xl">
@@ -86,6 +118,9 @@ export default function PersonalReplyForm({
         className="w-full rounded-lg bg-yellow-400 px-4 py-3 text-lg font-extrabold uppercase tracking-wide text-zinc-900 shadow disabled:opacity-50"
       >
         {state === "sending" ? t.sending : t.sendReply}
+      </button>
+      <button type="button" onClick={() => setNotMe(true)} className="w-full text-sm font-bold text-zinc-600 underline">
+        {t.notYou(guestName)}
       </button>
     </form>
   );

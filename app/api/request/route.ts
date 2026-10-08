@@ -4,6 +4,9 @@ import { replyStore } from "@/lib/stores";
 /** Someone the Shared link could not Match leaves their details. Saved as a Request, never as a Reply. */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
+  // A live Personal link code marks the Request as arriving through a forwarded link; anything else is the Shared link.
+  const code = typeof body?.code === "string" ? body.code.slice(0, 200) : "";
+  const forwarded = !!code && !!(await replyStore.guestForPersonalLink(code));
   const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
   const attending = typeof body?.attending === "boolean" ? body.attending : null;
   const partySize = Math.min(Math.max(Number(body?.partySize) || 1, 1), 10);
@@ -14,7 +17,7 @@ export async function POST(request: Request) {
     attending,
     partySize,
     companions: readCompanions(body),
-    source: "shared",
+    source: forwarded ? "personal_forward" : "shared",
     ownWords: text(body?.ownWords, 1000),
     contacts: {
       phone: text(c.phone, 200),
