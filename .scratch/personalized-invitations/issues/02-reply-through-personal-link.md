@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Replies seam: move today's behavior behind a tested module)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -17,3 +17,7 @@
 - [ ] Checked in a browser at phone width, in English and in Spanish.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-02 (6d9f5e0). Link path /i/<code>; archived link currently treated as unknown (ticket 06 refines).
