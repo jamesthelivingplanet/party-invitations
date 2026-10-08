@@ -5,7 +5,7 @@ import { formatDate, party } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
 import RacingCar from "../../racing-car";
 import LangSync from "../../lang-sync";
-import PersonalReplyForm from "./personal-reply-form";
+import PersonalReplyForm, { ClosedReply } from "./personal-reply-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Invitation", robots: { index: false } };
@@ -64,6 +64,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
   const event = await eventStore.get();
   const current = await replyStore.currentForPersonalLink(code);
   const deadline = replyDeadlineDate(event);
+  const open = await replyStore.repliesOpen();
   const rows: [string, string][] = [
     [t.date, formatDate(event.date, locale)],
     [t.time, event.time ?? t.tbd],
@@ -87,7 +88,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
       </dl>
 
       <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">{t.inRace}</h2>
-      <PersonalReplyForm code={code} locale={locale} current={current} />
+      {open ? <PersonalReplyForm code={code} locale={locale} current={current} /> : <ClosedReply locale={locale} current={current} />}
     </>,
   );
 }

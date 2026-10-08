@@ -15,6 +15,7 @@ export async function saveEventSettings(data: FormData) {
       date: String(data.get("date") ?? ""),
       time: String(data.get("time") ?? ""),
       place: String(data.get("place") ?? ""),
+      timeZone: String(data.get("timeZone") ?? ""),
       replyDeadlineDays: days === "" ? null : Number(days),
     });
   } catch (err) {

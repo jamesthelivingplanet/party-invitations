@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   }
 
   const outcome = await replyStore.submitShared({ name, relation, attending, partySize, companions: readCompanions(body) });
+  if (outcome === "closed") return Response.json({ error: "closed" }, { status: 403 });
   if (outcome === "companion_count" || outcome === "companion_incomplete") {
     return Response.json({ error: outcome }, { status: 400 });
   }
