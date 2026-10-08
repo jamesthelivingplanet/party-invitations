@@ -87,7 +87,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
       </dl>
 
       <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">{t.inRace}</h2>
-      <PersonalReplyForm code={code} locale={locale} current={current} />
+      <PersonalReplyForm code={code} guestName={guest.name} locale={locale} current={current} />
     </>,
   );
 }

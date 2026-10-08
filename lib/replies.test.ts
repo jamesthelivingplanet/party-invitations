@@ -559,3 +559,74 @@ test("Requests are listed newest first", async () => {
   await replies.submitRequest(request({ name: "Second" }));
   expect((await replies.listRequests()).map((r) => r.name)).toEqual(["Second", "First"]);
 });
+
+// "Not [name]?" on a Personal link
+const notMe = (name: string, over: Partial<SharedReply> = {}) => shared(name, over);
+
+test("Not [name]?: matching another guest records their reply and leaves the link owner's reply untouched", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const other = await g.add({ name: "Emma Rodriguez", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: sure(other) }) });
+  await store.submitPersonal(owner.personalLinkCode, { attending: true, ...party(2) });
+
+  const outcome = await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }));
+
+  expect(outcome).toBe("confirmed");
+  expect(await store.currentForPersonalLink(owner.personalLinkCode)).toEqual({
+    attending: true,
+    partySize: 2,
+    companions: [{ name: "Guest 2", kind: "adult" }],
+  });
+  const summary = await store.summary();
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.declined.map((e) => e.name)).toEqual(["Emma Rodriguez"]);
+});
+
+test("Not [name]?: identifying as the link's own guest records the reply for that guest", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(owner) }) });
+
+  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Sarah", { ...party(2) }))).toBe("confirmed");
+  expect((await store.summary()).coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+});
+
+test("Not [name]?: an unsure match goes to review and does not touch the link owner's reply", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const other = await g.add({ name: "Emma Rodriguez", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: unsure(other) }) });
+  await store.submitPersonal(owner.personalLinkCode, { attending: true, partySize: 1 });
+
+  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }))).toBe("review");
+
+  const summary = await store.summary();
+  expect(summary.review.map((r) => r.suggestedGuestName)).toEqual(["Emma Rodriguez"]);
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.declined).toEqual([]);
+});
+
+test("Not [name]?: nobody matched saves nothing and the visitor can leave a Request from a forwarded link", async () => {
+  const { guests, replies } = await setup();
+  const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Stranger"))).toBe("no_match");
+  expect((await replies.summary()).totalReplies).toBe(0);
+
+  const input: RequestInput = { name: "Stranger", source: "personal_forward", contacts: { phone: "555" } };
+  expect(await replies.submitRequest(input)).toBe("recorded");
+  expect((await replies.listRequests())[0].source).toBe("personal_forward");
+});
+
+test("Not [name]?: unknown, archived and badly formed are refused", async () => {
+  const { guests, replies } = await setup();
+  const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  expect(await replies.submitFromPersonalLink("nope", notMe("Emma"))).toBe("unknown_link");
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { partySize: 3 }))).toBe("companion_count");
+  await guests.archive(owner.id);
+  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma"))).toBe("no_longer_available");
+});

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { CompanionFields, readParty } from "./companion-fields";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
-export default function RsvpForm({ locale }: { locale: Locale }) {
+/** The Shared link form. With a Personal link `code` it is the "Not [name]?" form: same Matching, same outcomes. */
+export default function RsvpForm({ locale, code }: { locale: Locale; code?: string }) {
   const t = dictionaries[locale];
   const [attending, setAttending] = useState<boolean | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
@@ -27,6 +28,7 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
         relation: form.get("relation"),
         ...party,
         attending,
+        code,
       }),
     });
     if (res.ok) {
@@ -35,13 +37,13 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
       if (result === "no_match") setDraft({ name: String(form.get("name")), relation: String(form.get("relation")), ...party });
       setState("done");
     } else {
-      const code = (await res.json().catch(() => null))?.error;
+      const error = (await res.json().catch(() => null))?.error;
       setMessage(
-        code === "missing_fields"
+        error === "missing_fields"
           ? t.errMissing
-          : code === "companion_count"
+          : error === "companion_count"
             ? t.errCompanionCount
-            : code === "companion_incomplete"
+            : error === "companion_incomplete"
               ? t.errCompanionIncomplete
               : t.errGeneric,
       );
@@ -50,7 +52,7 @@ export default function RsvpForm({ locale }: { locale: Locale }) {
   }
 
   if (state === "done" && outcome === "no_match" && draft) {
-    return <RequestForm locale={locale} draft={draft} attending={attending} />;
+    return <RequestForm locale={locale} draft={draft} attending={attending} code={code} />;
   }
 
   if (state === "done") {
@@ -129,7 +131,9 @@ function RequestForm({
   locale,
   draft,
   attending,
+  code,
 }: {
+  code?: string;
   locale: Locale;
   draft: { name: string; relation: string; partySize: number; companions: ReturnType<typeof readParty>["companions"] };
   attending: boolean | null;
@@ -149,6 +153,7 @@ function RequestForm({
       body: JSON.stringify({
         name: field("name"),
         attending,
+        code,
         partySize: draft.partySize,
         companions: draft.companions,
         ownWords: field("ownWords"),
@@ -162,15 +167,15 @@ function RequestForm({
       }),
     });
     if (res.ok) return setState("done");
-    const code = (await res.json().catch(() => null))?.error;
+    const error = (await res.json().catch(() => null))?.error;
     setMessage(
-      code === "name_required"
+      error === "name_required"
         ? t.errRequestName
-        : code === "contact_required"
+        : error === "contact_required"
           ? t.errRequestContact
-          : code === "companion_count"
+          : error === "companion_count"
             ? t.errCompanionCount
-            : code === "companion_incomplete"
+            : error === "companion_incomplete"
               ? t.errCompanionIncomplete
               : t.errGeneric,
     );

@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { CompanionFields, readParty } from "@/app/companion-fields";
+import RsvpForm from "@/app/rsvp-form";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
 export default function PersonalReplyForm({
   code,
+  guestName,
   locale,
   current,
 }: {
   code: string;
+  guestName: string;
   locale: Locale;
   current: { attending: boolean; partySize: number; companions: { name: string; kind: "adult" | "child" }[] } | null;
 }) {
@@ -17,6 +20,7 @@ export default function PersonalReplyForm({
   const [attending, setAttending] = useState<boolean | null>(current?.attending ?? null);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [notMe, setNotMe] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,6 +43,15 @@ export default function PersonalReplyForm({
       setMessage(t.errGeneric);
       setState("error");
     }
+  }
+
+  if (notMe) {
+    return (
+      <div className="space-y-4">
+        <p className="text-zinc-300">{t.notYouIntro}</p>
+        <RsvpForm locale={locale} code={code} />
+      </div>
+    );
   }
 
   if (state === "done") {
@@ -86,6 +99,9 @@ export default function PersonalReplyForm({
         className="w-full rounded-lg bg-yellow-400 px-4 py-3 text-lg font-extrabold uppercase tracking-wide text-zinc-900 shadow disabled:opacity-50"
       >
         {state === "sending" ? t.sending : t.sendReply}
+      </button>
+      <button type="button" onClick={() => setNotMe(true)} className="w-full text-sm font-bold text-zinc-600 underline">
+        {t.notYou(guestName)}
       </button>
     </form>
   );

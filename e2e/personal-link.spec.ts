@@ -136,3 +136,43 @@ test("Companions are named and labelled, shown to the Host, and hidden when not 
   await expect(page.locator("input[name=partySize]")).toHaveCount(0);
   await expect(page.locator("input[name=companion-name-0]")).toHaveCount(0);
 });
+
+test("Not [name]? records the Reply for the Guest the person is, and leaves the link owner's Reply alone", async ({ page }) => {
+  const path = await addGuest(page, "Nora Owner", "en");
+  await page.goto(path);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+
+  // Someone else opens the forwarded link and says who they are. The page never names the Guest they matched.
+  await page.goto(path);
+  await page.getByRole("button", { name: "Not Nora Owner?" }).click();
+  await page.fill("input[name=name]", "Emma");
+  await page.fill("input[name=relation]", "forwarded-case");
+  await page.getByRole("button", { name: "Can't make it" }).click();
+  await page.getByRole("button", { name: /send/i }).click();
+  await expect(page.getByText("Thanks for letting us know!")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Emma Rodriguez");
+
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Nora Owner" }).filter({ hasText: "Coming" }).first()).toBeVisible();
+  await page.goto(path);
+  await expect(page.getByRole("button", { name: "Yes!" })).toHaveClass(/bg-red-600/);
+});
+
+test("Not [name]? with nobody matched leaves a Request marked as a forwarded Personal link, in Spanish", async ({ page }) => {
+  const path = await addGuest(page, "Sol Dueño", "es");
+  await page.goto(path);
+  await page.getByRole("button", { name: "¿No eres Sol Dueño?" }).click();
+  await page.fill("input[name=name]", "Desconocido");
+  await page.fill("input[name=relation]", "forward-es-case");
+  await page.getByRole("button", { name: "🛑 No puedo ir" }).click();
+  await page.getByRole("button", { name: /enviar/i }).click();
+  await expect(page.getByText("Nos encantaría tenerte en la fiesta")).toBeVisible();
+  await page.fill("input[name=email]", "d@example.com");
+  await page.getByRole("button", { name: "Enviar mis datos" }).click();
+  await expect(page.getByText("Tenemos tus datos y te contactaremos pronto.")).toBeVisible();
+
+  await page.goto("/admin/requests");
+  await expect(page.locator("li", { hasText: "forward-es-case" })).toContainText("Personal link");
+});

@@ -155,36 +155,56 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
     await db.execute({ sql: `UPDATE rsvps SET ${sql} WHERE id = ?`, args: [...args, id] });
   }
 
+  /** Jev Matches a typed identity to a Guest; saves a confirmed or review Reply, or nothing when nobody matches. */
+  async function matchAndRecord(reply: SharedReply): Promise<SubmitOutcome> {
+    const party = normalizeParty(reply);
+    if (!party.ok) return party.problem;
+    let match: ReturnType<typeof decide> = { guestId: null, confidence: 0, status: "review" };
+    try {
+      match = decide(await deps.jev(reply, await deps.guests.list()));
+    } catch (err) {
+      // If Jev is unreachable, still save the reply so nothing is lost.
+      console.error("Jev match failed", err);
+    }
+    // Nobody on the list: nothing is saved here. The visitor is asked for their details, which become a Request.
+    if (match.status === "unmatched") return "no_match";
+    await ensure();
+    await db.execute({
+      sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        reply.name,
+        reply.relation,
+        reply.attending ? 1 : 0,
+        party.partySize,
+        JSON.stringify(party.companions),
+        match.guestId,
+        match.confidence,
+        match.status,
+      ],
+    });
+    return match.status === "matched" ? "confirmed" : "review";
+  }
+
   return {
     /** A reply sent through the Shared link: Jev tries to match it to a guest. */
     async submitShared(reply: SharedReply): Promise<SubmitOutcome> {
-      const party = normalizeParty(reply);
-      if (!party.ok) return party.problem;
-      let match: ReturnType<typeof decide> = { guestId: null, confidence: 0, status: "review" };
-      try {
-        match = decide(await deps.jev(reply, await deps.guests.list()));
-      } catch (err) {
-        // If Jev is unreachable, still save the reply so nothing is lost.
-        console.error("Jev match failed", err);
-      }
-      // Nobody on the list: nothing is saved here. The visitor is asked for their details, which become a Request.
-      if (match.status === "unmatched") return "no_match";
-      await ensure();
-      await db.execute({
-        sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          reply.name,
-          reply.relation,
-          reply.attending ? 1 : 0,
-          party.partySize,
-          JSON.stringify(party.companions),
-          match.guestId,
-          match.confidence,
-          match.status,
-        ],
-      });
-      return match.status === "matched" ? "confirmed" : "review";
+      return matchAndRecord(reply);
+    },
+
+    /**
+     * "Not [name]?" on a Personal link: the person says who they are and goes through the same Matching and
+     * outcomes as the Shared link. The code only has to be a live link; a Match to any Guest (even a different one)
+     * records the Reply for that Guest, and the Reply of the Guest the link was made for is never touched.
+     */
+    async submitFromPersonalLink(
+      code: string,
+      reply: SharedReply,
+    ): Promise<SubmitOutcome | "unknown_link" | "no_longer_available"> {
+      const owner = await this.guestForPersonalLink(code);
+      if (!owner) return "unknown_link";
+      if (owner.archived) return "no_longer_available";
+      return matchAndRecord(reply);
     },
 
     /** Someone not on the Guest list leaves their details. Needs a name and at least one way to reach them. */
