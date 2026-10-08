@@ -62,6 +62,7 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
 
       <Section title="Send">
         <div className="space-y-3">
+          <a href="/admin/invitations/send" className={`${primary} w-full`}>Send next Guest</a>
           <nav aria-label="Filter" className="flex gap-2 text-sm font-semibold">
             <a href="/admin/invitations" aria-current={!notReplied ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-xl px-4 ring-1 ring-inset ${!notReplied ? "bg-zinc-900 text-white ring-zinc-900" : "bg-white text-zinc-800 ring-zinc-300"}`}>
               All Guests

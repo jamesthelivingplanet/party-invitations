@@ -134,6 +134,20 @@ export function createInvitationStore(
       return opts.notReplied ? all.filter((r) => r.status !== "replied") : all;
     },
 
+    /**
+     * For send-next mode: the first Guest whose Invitation is not sent (and who has not replied), leaving out
+     * the `skip` ones. `remaining` counts all unsent Guests; `skippedLeft` how many of them are being skipped.
+     */
+    async nextUnsent(opts: { skip?: string[] } = {}) {
+      const skip = new Set(opts.skip ?? []);
+      const unsent = (await this.overview()).filter((r) => r.status === "not_sent");
+      return {
+        next: unsent.find((r) => !skip.has(r.guestId)) ?? null,
+        remaining: unsent.length,
+        skippedLeft: unsent.filter((r) => skip.has(r.guestId)).length,
+      };
+    },
+
     /** Record that the Host shared or copied the Invitation (with the time), or clear it by hand. */
     async setSent(guestId: string, sent: boolean): Promise<void> {
       if (!(await deps.guests.list({ includeArchived: true })).some((g) => g.id === guestId)) {

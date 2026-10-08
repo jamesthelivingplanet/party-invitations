@@ -183,3 +183,26 @@ test("the not-replied filter leaves out Guests who have replied", async () => {
   ]);
   expect(ana.id).toBeTruthy();
 });
+
+test("send-next picks the first Guest not yet sent, passes over skipped ones and those who replied, and counts what is left", async () => {
+  const { guests, invitations, replies } = setup();
+  const sarah = await guests.add({ name: "Sarah", language: "en", notes: "" });
+  const pedro = await guests.add({ name: "Pedro", language: "es", notes: "" });
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  const lu = await guests.add({ name: "Lu", language: "en", notes: "" });
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 });
+
+  expect((await invitations.nextUnsent()).next).toMatchObject({ guestId: pedro.id });
+
+  const skipped = await invitations.nextUnsent({ skip: [pedro.id] });
+  expect(skipped.next).toMatchObject({ guestId: ana.id });
+  expect(skipped).toMatchObject({ remaining: 3, skippedLeft: 1 });
+
+  await invitations.setSent(ana.id, true);
+  await invitations.setSent(lu.id, true);
+  const onlySkipped = await invitations.nextUnsent({ skip: [pedro.id] });
+  expect(onlySkipped).toMatchObject({ next: null, remaining: 1, skippedLeft: 1 });
+
+  await invitations.setSent(pedro.id, true);
+  expect(await invitations.nextUnsent()).toMatchObject({ next: null, remaining: 0, skippedLeft: 0 });
+});
