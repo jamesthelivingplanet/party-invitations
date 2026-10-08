@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (A Guest can reply through their Personal link), 11 (Shared-link outcomes and Requests)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Spec:** `.scratch/personalized-invitations/spec.md`
 
@@ -16,3 +16,7 @@
 - [ ] Checked in a browser at phone width.
 - [ ] Written test-first (`/tdd`) at the seams agreed in the spec; no new seam is added without checking with the Host.
 - [ ] Typecheck, lint and the full test suite pass.
+
+## Answer
+
+Done on ticket-13. submitFromPersonalLink; Not [name]? button; Request source personal_forward.
