@@ -34,6 +34,10 @@ const en = {
   doneNo: "We'll miss you at the race.",
   errMissing: "Please fill in your name and who you are.",
   errGeneric: "Something went wrong. Try again!",
+  hello: (name: string) => `Hi ${name}!`,
+  linkUnknownTitle: "We can't find this invitation",
+  linkUnknown: "This link doesn't look right. Please check it with the person who sent it to you.",
+  sendReply: "Send reply",
   language: "Idioma",
   switchTo: "Español",
 };
@@ -65,6 +69,10 @@ const es: typeof en = {
   doneNo: "Te extrañaremos en la carrera.",
   errMissing: "Por favor escribe tu nombre y quién eres.",
   errGeneric: "Algo salió mal. ¡Inténtalo de nuevo!",
+  hello: (name) => `¡Hola ${name}!`,
+  linkUnknownTitle: "No encontramos esta invitación",
+  linkUnknown: "Este enlace no parece correcto. Pídele a quien te lo envió que lo revise.",
+  sendReply: "Enviar respuesta",
   language: "Language",
   switchTo: "English",
 };

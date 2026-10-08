@@ -3,6 +3,7 @@ import type { Guest } from "@/lib/guests";
 import { guestStore } from "@/lib/stores";
 import { Badge, Empty, List, Section } from "../ui";
 import { AdminShell } from "../shell";
+import { CopyLinkButton } from "./copy-link-button";
 import { addGuest, archiveGuest, restoreGuest, updateGuest } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -113,12 +114,15 @@ function GuestRow({ guest }: { guest: Guest }) {
           </div>
           {guest.notes && <div className="mt-0.5 break-words text-sm text-zinc-600">{guest.notes}</div>}
         </div>
-        <form action={archiveGuest} className="shrink-0">
+        <div className="flex shrink-0 flex-col items-end">
+        <CopyLinkButton code={guest.personalLinkCode} />
+        <form action={archiveGuest}>
           <input type="hidden" name="id" value={guest.id} />
           <button className="rounded-md px-1.5 py-1 text-sm font-semibold text-zinc-500 hover:text-rose-700 hover:underline">
             Archive
           </button>
         </form>
+        </div>
       </div>
       <details className="group mt-2">
         <summary className="inline-flex cursor-pointer list-none items-center text-sm font-semibold text-zinc-700 underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">

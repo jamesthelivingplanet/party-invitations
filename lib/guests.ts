@@ -8,6 +8,8 @@ export type Guest = {
   language: Language;
   notes: string;
   archived: boolean;
+  /** The unguessable code carried in the Guest's Personal link. */
+  personalLinkCode: string;
 };
 
 export type GuestInput = { name: string; language: Language; notes: string };
@@ -32,6 +34,11 @@ function cleanLanguage(language: string): Language {
   return language;
 }
 
+/** 128 bits of randomness, written as 22 URL-safe characters. */
+function newPersonalLinkCode() {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
+}
+
 export type SeedGuest = { id: string; name: string; notes: string; language?: Language };
 
 export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) {
@@ -52,13 +59,34 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
       `);
-      if (existed) return;
-      for (const g of opts.seed ?? []) {
+      const columns = await db.execute("PRAGMA table_info(guests)");
+      if (!columns.rows.some((r) => r.name === "personal_link_code")) {
+        try {
+          await db.execute("ALTER TABLE guests ADD COLUMN personal_link_code TEXT");
+        } catch (err) {
+          // Another instance may have added it first.
+          if (!String(err).includes("duplicate column")) throw err;
+        }
+      }
+      if (!existed) {
+        for (const g of opts.seed ?? []) {
+          await db.execute({
+            sql: "INSERT INTO guests (id, name, language, notes) VALUES (?, ?, ?, ?)",
+            args: [g.id, g.name, g.language ?? "en", g.notes],
+          });
+        }
+      }
+      // Guests from before Personal links existed (and the seed) get a code here.
+      const missing = await db.execute("SELECT id FROM guests WHERE personal_link_code IS NULL");
+      for (const row of missing.rows) {
         await db.execute({
-          sql: "INSERT INTO guests (id, name, language, notes) VALUES (?, ?, ?, ?)",
-          args: [g.id, g.name, g.language ?? "en", g.notes],
+          sql: "UPDATE guests SET personal_link_code = ? WHERE id = ? AND personal_link_code IS NULL",
+          args: [newPersonalLinkCode(), String(row.id)],
         });
       }
+      await db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS guests_personal_link_code ON guests (personal_link_code)",
+      );
     })());
 
   const toGuest = (row: Record<string, unknown>): Guest => ({
@@ -67,6 +95,7 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
     language: row.language as Language,
     notes: String(row.notes),
     archived: Number(row.archived) === 1,
+    personalLinkCode: String(row.personal_link_code),
   });
 
   return {
@@ -79,11 +108,12 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
         notes: cleanNotes(input.notes),
       };
       const id = `gst_${crypto.randomUUID()}`;
+      const personalLinkCode = newPersonalLinkCode();
       await db.execute({
-        sql: "INSERT INTO guests (id, name, language, notes) VALUES (?, ?, ?, ?)",
-        args: [id, input.name, input.language, input.notes],
+        sql: "INSERT INTO guests (id, name, language, notes, personal_link_code) VALUES (?, ?, ?, ?, ?)",
+        args: [id, input.name, input.language, input.notes, personalLinkCode],
       });
-      return { id, ...input, archived: false };
+      return { id, ...input, archived: false, personalLinkCode };
     },
 
     async list(opts: { includeArchived?: boolean } = {}): Promise<Guest[]> {

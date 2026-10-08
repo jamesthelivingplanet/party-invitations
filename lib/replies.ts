@@ -15,6 +15,7 @@ export const REVIEW_THRESHOLD = 0.4;
 export const SOFT_THRESHOLD = 0.15;
 
 export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number };
+export type PersonalReply = { attending: boolean; partySize: number };
 export type SubmitOutcome = "confirmed" | "review" | "no_match";
 
 export type Reply = {
@@ -117,6 +118,26 @@ export function createReplyStore(db: Client, deps: { guests: Guests; jev: Jev })
         ],
       });
       return match.status === "matched" ? "confirmed" : match.status === "review" ? "review" : "no_match";
+    },
+
+    /** The Guest a Personal link was made for, or null for an unknown code or an archived Guest. */
+    async guestForPersonalLink(code: string): Promise<Guest | null> {
+      if (!code) return null;
+      const all = await deps.guests.list();
+      return all.find((g) => g.personalLinkCode === code) ?? null;
+    },
+
+    /** A Reply through a Personal link: the code says who is replying, so no Match is needed. */
+    async submitPersonal(code: string, reply: PersonalReply): Promise<"recorded" | "unknown_link"> {
+      const guest = await this.guestForPersonalLink(code);
+      if (!guest) return "unknown_link";
+      await ensure();
+      await db.execute({
+        sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status)
+              VALUES (?, ?, ?, ?, ?, 1, 'matched')`,
+        args: [guest.name, "Personal link", reply.attending ? 1 : 0, reply.attending ? reply.partySize : 1, guest.id],
+      });
+      return "recorded";
     },
 
     async assignToGuest(id: number, guestId: string) {

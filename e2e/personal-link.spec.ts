@@ -1,0 +1,51 @@
+import { expect, test } from "@playwright/test";
+import { dashboardNumbers, loginAsHost } from "./helpers";
+
+/** Adds a Guest through the admin and returns the path of their Personal link. */
+async function addGuest(page: import("@playwright/test").Page, name: string, language: "en" | "es") {
+  await loginAsHost(page);
+  await page.goto("/admin/guests");
+  await page.fill("#new-name", name);
+  await page.selectOption("#new-language", language);
+  await page.getByRole("button", { name: "Add guest" }).click();
+  const row = page.locator("li", { hasText: name }).first();
+  const path = await row.locator("[data-personal-path]").getAttribute("data-personal-path");
+  expect(path).toMatch(/^\/i\/[A-Za-z0-9_-]{22,}$/);
+  return path!;
+}
+
+test("a Guest opens their Personal link in English, replies, and the Host sees it as theirs", async ({ page }) => {
+  const path = await addGuest(page, "Penny Personal", "en");
+  await page.goto(path);
+
+  await expect(page.getByRole("heading", { name: "Hi Penny Personal!" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.fill("input[name=partySize]", "3");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Penny Personal" }).filter({ hasText: "3 people" })).toBeVisible();
+  expect((await dashboardNumbers(page)).headcount).toBeGreaterThanOrEqual(3);
+});
+
+test("a Spanish-speaking Guest sees Spanish first and can switch to English", async ({ page }) => {
+  const path = await addGuest(page, "Pedro Personal", "es");
+  await page.goto(path);
+
+  await expect(page.getByRole("heading", { name: "¡Hola Pedro Personal!" })).toBeVisible();
+  await page.getByRole("button", { name: "¡Sí!" }).click();
+  await page.getByRole("button", { name: "Enviar respuesta" }).click();
+  await expect(page.getByText("¡Ya estás en la parrilla de salida!")).toBeVisible();
+
+  await page.goto(path);
+  await page.getByRole("link", { name: /English/ }).click();
+  await expect(page.getByRole("heading", { name: "Hi Pedro Personal!" })).toBeVisible();
+});
+
+test("an unknown or malformed Personal link shows a friendly message", async ({ page }) => {
+  await page.goto("/i/this-is-not-a-real-code?lang=en");
+  await expect(page.getByRole("heading", { name: "We can't find this invitation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /send/i })).toHaveCount(0);
+});

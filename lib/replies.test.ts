@@ -235,3 +235,59 @@ test("the summary counts every reply received, however it was sorted", async () 
 
   expect((await replies.summary()).totalReplies).toBe(2);
 });
+
+test("a Reply through a valid Personal link is recorded for that Guest and shows in the summary", async () => {
+  const { guests, replies } = await setup();
+  await guests.add({ name: "Dave Example", language: "en", notes: "" });
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "es", notes: "" });
+
+  const outcome = await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 3 });
+
+  expect(outcome).toBe("recorded");
+  const summary = await replies.summary();
+  expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.headcount).toBe(3);
+  expect(summary.review).toEqual([]);
+  expect(summary.noReply.map((g) => g.name)).toEqual(["Dave Example"]);
+});
+
+test("a Guest who says they are not coming shows as declined", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  await replies.submitPersonal(sarah.personalLinkCode, { attending: false, partySize: 4 });
+
+  const summary = await replies.summary();
+  expect(summary.declined.map((e) => e.name)).toEqual(["Sarah Johnson"]);
+  expect(summary.headcount).toBe(0);
+});
+
+test("an unknown Personal link code is rejected and records nothing", async () => {
+  const { guests, replies } = await setup();
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+
+  expect(await replies.submitPersonal("not-a-real-code", { attending: true, partySize: 2 })).toBe("unknown_link");
+
+  const summary = await replies.summary();
+  expect(summary.totalReplies).toBe(0);
+  expect(summary.coming).toEqual([]);
+});
+
+test("a Personal link for an archived Guest accepts no Reply", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await guests.archive(sarah.id);
+
+  expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 })).toBe("unknown_link");
+  expect((await replies.summary()).totalReplies).toBe(0);
+});
+
+test("a Personal link finds its Guest, and only while the Guest is on the list", async () => {
+  const { guests, replies } = await setup();
+  const sarah = await guests.add({ name: "Sarah Johnson", language: "es", notes: "" });
+
+  expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toMatchObject({ name: "Sarah Johnson", language: "es" });
+  expect(await replies.guestForPersonalLink("nope")).toBeNull();
+  await guests.archive(sarah.id);
+  expect(await replies.guestForPersonalLink(sarah.personalLinkCode)).toBeNull();
+});

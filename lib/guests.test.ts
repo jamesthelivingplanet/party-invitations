@@ -139,3 +139,31 @@ test("placeholders the host has removed do not come back", async () => {
 
   expect(reopened).toEqual([]);
 });
+
+test("every guest gets their own long Personal link code", async () => {
+  const guests = createGuestStore(testDb());
+  const added = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await guests.add({ name: "Dave Example", language: "en", notes: "" });
+
+  const codes = (await guests.list()).map((g) => g.personalLinkCode);
+  expect(new Set(codes).size).toBe(2);
+  // 22 URL-safe characters carry 128 bits.
+  for (const code of codes) expect(code).toMatch(/^[A-Za-z0-9_-]{22,}$/);
+  expect(added.personalLinkCode).toBe(codes[0]);
+});
+
+test("guests who were on the list before Personal links existed get a code without any manual step", async () => {
+  const db = testDb();
+  await db.execute(`CREATE TABLE guests (id TEXT PRIMARY KEY, name TEXT NOT NULL, language TEXT NOT NULL,
+    notes TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  await db.execute("INSERT INTO guests (id, name, language, notes) VALUES ('a', 'Old One', 'en', '')");
+  await db.execute("INSERT INTO guests (id, name, language, notes) VALUES ('b', 'Old Two', 'es', '')");
+
+  const list = await createGuestStore(db).list();
+
+  expect(list.map((g) => g.name)).toEqual(["Old One", "Old Two"]);
+  expect(list[0].personalLinkCode).toMatch(/^[A-Za-z0-9_-]{22,}$/);
+  expect(list[0].personalLinkCode).not.toBe(list[1].personalLinkCode);
+  // The code stays the same on the next visit.
+  expect((await createGuestStore(db).list())[0].personalLinkCode).toBe(list[0].personalLinkCode);
+});
