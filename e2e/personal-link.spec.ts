@@ -24,7 +24,7 @@ test("a Guest opens their Personal link in English, replies, and the Host sees i
   await page.fill("input[name=partySize]", "3");
   await fillCompanions(page, 2);
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+  await expect(page.getByText("You're all set")).toBeVisible();
 
   await page.goto("/admin");
   await expect(page.locator("li", { hasText: "Penny Personal" }).filter({ hasText: "3 people" })).toBeVisible();
@@ -38,7 +38,7 @@ test("a Spanish-speaking Guest sees Spanish first and can switch to English", as
   await expect(page.getByRole("heading", { name: "¡Hola Pedro Personal!" })).toBeVisible();
   await page.getByRole("button", { name: "¡Sí!" }).click();
   await page.getByRole("button", { name: "Enviar respuesta" }).click();
-  await expect(page.getByText("¡Ya estás en la parrilla de salida!")).toBeVisible();
+  await expect(page.getByText("Todo listo")).toBeVisible();
 
   await page.goto(path);
   await page.getByRole("link", { name: /English/ }).click();
@@ -56,7 +56,7 @@ test("regenerating a link retires the old one, and archiving shows 'no longer av
   await page.goto(oldPath);
   await page.getByRole("button", { name: "¡Sí!" }).click();
   await page.getByRole("button", { name: "Enviar respuesta" }).click();
-  await expect(page.getByText("¡Ya estás en la parrilla de salida!")).toBeVisible();
+  await expect(page.getByText("Todo listo")).toBeVisible();
 
   await page.goto("/admin/guests");
   const row = () => page.locator("li", { hasText: "Rita Regenerate" }).first();
@@ -89,9 +89,11 @@ test("a Guest reopens their link, sees their answer, and changes it", async ({ p
   await page.fill("input[name=partySize]", "4");
   await fillCompanions(page, 3);
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+  await expect(page.getByText("You're all set")).toBeVisible();
 
   await page.goto(path);
+  await expect(page.getByRole("heading", { name: "You're all set" })).toBeVisible();
+  await page.getByRole("button", { name: "Change my reply" }).click();
   await expect(page.locator("input[name=partySize]")).toHaveValue("4");
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   await expect(page.locator("input[name=companion-name-2]")).toHaveValue("Companion 3");
@@ -99,14 +101,16 @@ test("a Guest reopens their link, sees their answer, and changes it", async ({ p
   await expect(page.locator("input[name=companion-name-1]")).toHaveCount(0);
   await expect(page.locator("input[name=companion-name-0]")).toHaveValue("Companion 1");
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+  await expect(page.getByText("You're all set")).toBeVisible();
 
   await page.goto("/admin");
   await expect(page.locator("li", { hasText: "Carla Changer" }).filter({ hasText: "2 people" })).toHaveCount(1);
 
   await page.goto(path);
+  await page.getByRole("button", { name: "Change my reply" }).click();
   await page.getByRole("button", { name: "Can't make it" }).click();
   await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByTestId("reply-answer")).toHaveText("Not coming");
   await page.goto("/admin");
   await expect(page.locator("li", { hasText: "Carla Changer" }).filter({ hasText: "people" })).toHaveCount(0);
 });
@@ -124,7 +128,7 @@ test("Companions are named and labelled, shown to the Host, and hidden when not 
   await page.fill("input[name=companion-name-1]", "Ada Adult");
   await page.selectOption("select[name=companion-kind-1]", "adult");
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+  await expect(page.getByText("You're all set")).toBeVisible();
 
   await page.goto("/admin");
   const row = page.locator("li", { hasText: "Fiona Family" }).filter({ hasText: "3 people" });
@@ -132,6 +136,7 @@ test("Companions are named and labelled, shown to the Host, and hidden when not 
   await expect(row.getByText("Ada Adult · adult")).toBeVisible();
 
   await page.goto(path);
+  await page.getByRole("button", { name: "Change my reply" }).click();
   await page.getByRole("button", { name: "Can't make it" }).click();
   await expect(page.locator("input[name=partySize]")).toHaveCount(0);
   await expect(page.locator("input[name=companion-name-0]")).toHaveCount(0);
@@ -142,7 +147,7 @@ test("Not [name]? records the Reply for the Guest the person is, and leaves the 
   await page.goto(path);
   await page.getByRole("button", { name: "Yes!" }).click();
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+  await expect(page.getByText("You're all set")).toBeVisible();
 
   // Someone else opens the forwarded link and says who they are. The page never names the Guest they matched.
   await page.goto(path);
@@ -175,4 +180,65 @@ test("Not [name]? with nobody matched leaves a Request marked as a forwarded Per
 
   await page.goto("/admin/requests");
   await expect(page.locator("li", { hasText: "forward-es-case" })).toContainText("Personal link");
+});
+
+test("reply, see the summary, change it, see the new summary (phone width)", async ({ page }) => {
+  const path = await addGuest(page, "Sara Summary", "en");
+  await page.goto(path);
+  await expect(page.getByRole("button", { name: "Change my reply" })).toHaveCount(0); // not replied yet: the form
+
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.fill("input[name=partySize]", "3");
+  await page.fill("input[name=companion-name-0]", "Tim Tiny");
+  await page.selectOption("select[name=companion-kind-0]", "child");
+  await page.fill("input[name=companion-name-1]", "Ada Adult");
+  await page.selectOption("select[name=companion-kind-1]", "adult");
+  await page.getByRole("button", { name: "Send reply" }).click();
+
+  await expect(page.getByRole("heading", { name: "You're all set" })).toBeVisible();
+  await expect(page.getByText("Thanks! Your reply is in.")).toBeVisible();
+  await expect(page.getByTestId("reply-answer")).toHaveText("Coming: 3 people");
+  await expect(page.getByTestId("reply-party-size")).toHaveText("3");
+  await expect(page.getByTestId("reply-companions")).toContainText("Tim Tiny (Child)");
+  await expect(page.getByTestId("reply-companions")).toContainText("Ada Adult (Adult)");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+
+  // Coming back later: the summary, without the thank-you line.
+  await page.goto(path);
+  await expect(page.getByRole("heading", { name: "You're all set" })).toBeVisible();
+  await expect(page.getByText("Thanks! Your reply is in.")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Change my reply" }).click();
+  await expect(page.locator("input[name=companion-name-0]")).toHaveValue("Tim Tiny");
+  await page.fill("input[name=partySize]", "2");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByTestId("reply-answer")).toHaveText("Coming: 2 people");
+  await expect(page.getByTestId("reply-companions")).toContainText("Tim Tiny (Child)");
+  await expect(page.getByTestId("reply-companions")).not.toContainText("Ada Adult");
+});
+
+test("the Party size box can be cleared and retyped; it falls back to 1 when left empty", async ({ page }) => {
+  const path = await addGuest(page, "Pablo Party", "en");
+  await page.goto(path);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  const box = page.locator("input[name=partySize]");
+  await page.fill("input[name=partySize]", "3");
+  await expect(page.locator("input[name=companion-name-1]")).toBeVisible();
+
+  await box.fill("");
+  await expect(box).toHaveValue(""); // not forced back to a number while typing
+  await expect(page.locator("input[name=companion-name-1]")).toBeVisible(); // rows unchanged until blur
+  await box.pressSequentially("2");
+  await expect(box).toHaveValue("2");
+  await expect(page.locator("input[name=companion-name-1]")).toHaveCount(0);
+  await expect(page.locator("input[name=companion-name-0]")).toBeVisible();
+
+  await box.fill("");
+  await box.blur();
+  await expect(box).toHaveValue("1");
+  await expect(page.locator("input[name=companion-name-0]")).toHaveCount(0);
+
+  await box.fill("99");
+  await box.blur();
+  await expect(box).toHaveValue("10");
 });

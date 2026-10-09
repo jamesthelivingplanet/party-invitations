@@ -140,3 +140,31 @@ export function replyDeadlinePassed(event: EventSettings, now: Date): boolean {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: event.timeZone }).format(now);
   return today > deadline;
 }
+
+/** Time zones offered on the settings screen: [IANA name, label]. */
+export const TIME_ZONE_CHOICES: readonly (readonly [string, string])[] = [
+  ["America/New_York", "Eastern (New York)"],
+  ["America/Chicago", "Central (Chicago)"],
+  ["America/Denver", "Mountain (Denver)"],
+  ["America/Phoenix", "Mountain, no daylight saving (Phoenix)"],
+  ["America/Los_Angeles", "Pacific (Los Angeles)"],
+  ["America/Anchorage", "Alaska (Anchorage)"],
+  ["Pacific/Honolulu", "Hawaii (Honolulu)"],
+  ["America/Mexico_City", "Mexico City"],
+  ["America/Bogota", "Bogota"],
+  ["America/Lima", "Lima"],
+  ["America/Santiago", "Santiago"],
+  ["America/Argentina/Buenos_Aires", "Buenos Aires"],
+  ["America/Sao_Paulo", "Sao Paulo"],
+  ["Europe/London", "London"],
+  ["Europe/Madrid", "Madrid"],
+  ["Europe/Paris", "Paris"],
+  ["Europe/Berlin", "Berlin"],
+  ["Europe/Rome", "Rome"],
+  ["UTC", "UTC"],
+];
+
+/** The choices to show, always including the saved zone even if it is not in the list. */
+export function timeZoneOptions(saved: string): readonly (readonly [string, string])[] {
+  return TIME_ZONE_CHOICES.some(([zone]) => zone === saved) ? TIME_ZONE_CHOICES : [[saved, saved], ...TIME_ZONE_CHOICES];
+}

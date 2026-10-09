@@ -26,13 +26,13 @@ test("after the Reply deadline links are read-only, the Shared link says closed,
     await page.fill("input[name=partySize]", "2");
     await fillCompanions(page, 1);
     await page.getByRole("button", { name: "Send reply" }).click();
-    await expect(page.getByText("You're on the starting grid!")).toBeVisible();
+    await expect(page.getByText("You're all set")).toBeVisible();
 
     // Deadline passed (event was yesterday-ish, closes on the event day itself).
     await saveSettings(page, { date: "2020-01-10", days: "0" });
     await page.goto(path);
     await expect(page.getByText("Replies are closed")).toBeVisible();
-    await expect(page.getByTestId("closed-reply")).toHaveText("Coming: 2 people");
+    await expect(page.getByTestId("reply-answer")).toHaveText("Coming: 2 people");
     await expect(page.getByRole("button", { name: "Send reply" })).toHaveCount(0);
     await page.goto("/?lang=es");
     await expect(page.getByText("Las respuestas están cerradas")).toBeVisible();

@@ -4,20 +4,11 @@ import { useState } from "react";
 import { CompanionFields, readParty } from "@/app/companion-fields";
 import RsvpForm from "@/app/rsvp-form";
 import { dictionaries, type Locale } from "@/lib/i18n";
+import { ReplySummary, type CurrentReply } from "./reply-summary";
 
 /** The Guest's Reply, read-only, once the Reply deadline has passed. */
-export function ClosedReply({ locale, current }: { locale: Locale; current: { attending: boolean; partySize: number } | null }) {
-  const t = dictionaries[locale];
-  return (
-    <div role="status" className="rounded-2xl bg-white p-6 text-center text-zinc-900 shadow-xl">
-      <h3 className="text-xl font-extrabold">{t.repliesClosed}</h3>
-      <p className="mt-2 text-zinc-600">{t.repliesClosedNote}</p>
-      <p className="mt-4 font-bold">{t.yourReply}</p>
-      <p data-testid="closed-reply">
-        {current ? (current.attending ? t.yourReplyYes(current.partySize) : t.yourReplyNo) : t.yourReplyNone}
-      </p>
-    </div>
-  );
+export function ClosedReply({ locale, current }: { locale: Locale; current: CurrentReply | null }) {
+  return <ReplySummary locale={locale} current={current} closed />;
 }
 
 export default function PersonalReplyForm({
@@ -29,12 +20,16 @@ export default function PersonalReplyForm({
   code: string;
   guestName: string;
   locale: Locale;
-  current: { attending: boolean; partySize: number; companions: { name: string; kind: "adult" | "child" }[] } | null;
+  current: CurrentReply | null;
 }) {
   const t = dictionaries[locale];
+  // What the Guest has replied so far (the saved Reply, or the one just sent). Shown as a summary, not a form.
+  const [saved, setSaved] = useState<CurrentReply | null>(current);
+  const [editing, setEditing] = useState(current === null);
+  const [thanks, setThanks] = useState(false);
   const [attending, setAttending] = useState<boolean | null>(current?.attending ?? null);
   const [closed, setClosed] = useState(false);
-  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "error">("idle");
   const [message, setMessage] = useState("");
   const [notMe, setNotMe] = useState(false);
 
@@ -42,14 +37,20 @@ export default function PersonalReplyForm({
     e.preventDefault();
     if (attending === null) return;
     const form = new FormData(e.currentTarget);
+    const party = readParty(form);
     setState("sending");
     try {
       const res = await fetch("/api/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, attending, ...readParty(form) }),
+        body: JSON.stringify({ code, attending, ...party }),
       });
-      if (res.ok) setState("done");
+      if (res.ok) {
+        setSaved({ attending, partySize: attending ? party.partySize : 1, companions: attending ? party.companions : [] });
+        setThanks(true);
+        setEditing(false);
+        setState("idle");
+      }
       else {
         const error = (await res.json().catch(() => null))?.error;
         if (error === "closed") setClosed(true);
@@ -71,17 +72,22 @@ export default function PersonalReplyForm({
     );
   }
 
-  if (state === "done") {
+  if (closed) return <ClosedReply locale={locale} current={saved} />;
+
+  if (!editing) {
     return (
-      <div className="rounded-2xl bg-white p-8 text-center text-zinc-900 shadow-xl">
-        <p className="text-4xl">{attending ? "🏁" : "👋"}</p>
-        <h3 className="mt-2 text-2xl font-extrabold">{attending ? t.doneYesTitle : t.doneNoTitle}</h3>
-        <p className="mt-2 text-zinc-600">{attending ? t.doneYes : t.doneNo}</p>
-      </div>
+      <ReplySummary
+        locale={locale}
+        current={saved}
+        thanks={thanks}
+        onChange={() => {
+          setThanks(false);
+          setAttending(saved?.attending ?? null);
+          setEditing(true);
+        }}
+      />
     );
   }
-
-  if (closed) return <ClosedReply locale={locale} current={current} />;
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-2xl bg-white p-6 text-zinc-900 shadow-xl">
@@ -108,8 +114,8 @@ export default function PersonalReplyForm({
       {attending && (
         <CompanionFields
           locale={locale}
-          initialPartySize={current?.attending ? current.partySize : 1}
-          initialCompanions={current?.attending ? current.companions : []}
+          initialPartySize={saved?.attending ? saved.partySize : 1}
+          initialCompanions={saved?.attending ? saved.companions : []}
         />
       )}
       {state === "error" && <p className="text-sm font-semibold text-red-700">{message}</p>}

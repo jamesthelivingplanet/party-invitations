@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { testDb } from "@/test/db";
-import { createEventStore, replyDeadlineDate, type EventSettings } from "./event";
+import { createEventStore, replyDeadlineDate, timeZoneOptions, TIME_ZONE_CHOICES, type EventSettings } from "./event";
 
 test("a fresh event is Alex's party on 2026-12-19 with no time, place or deadline yet", async () => {
   const event = await createEventStore(testDb()).get();
@@ -105,4 +105,12 @@ test("a time zone that does not exist is rejected and changes nothing", async ()
   await expect(event.update({ timeZone: "Planet/Olympus" })).rejects.toThrow(/time zone/i);
 
   expect((await event.get()).timeZone).toBe("America/New_York");
+});
+
+test("every offered time zone is one the event store accepts, and a saved zone outside the list is still offered", async () => {
+  const store = createEventStore(testDb());
+  for (const [zone] of TIME_ZONE_CHOICES) await store.update({ timeZone: zone });
+
+  expect(timeZoneOptions("America/Chicago")).toBe(TIME_ZONE_CHOICES);
+  expect(timeZoneOptions("Asia/Tokyo")[0]).toEqual(["Asia/Tokyo", "Asia/Tokyo"]);
 });

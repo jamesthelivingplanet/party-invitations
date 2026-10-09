@@ -8,7 +8,7 @@
 const SPOKES = [0, 72, 144, 216, 288];
 
 /** One chrome mag wheel with a red-stripe tire. */
-function Wheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+export function Wheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   const rim = r * 0.62;
   return (
     <g className="rc-wheel">

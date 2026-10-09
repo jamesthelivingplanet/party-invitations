@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import CarSpinner from "../car-spinner";
 
 const tabs = [
   { id: "replies", href: "/admin", label: "Replies" },
@@ -37,5 +38,16 @@ export function AdminShell({ current, children }: { current: AdminTab; children:
       </nav>
       <main className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">{children}</main>
     </div>
+  );
+}
+
+/** Loading state for an admin screen: the shell and tabs stay (with the clicked tab lit) and only the content shows the spinner. */
+export function AdminLoading({ current }: { current: AdminTab }) {
+  return (
+    <AdminShell current={current}>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <CarSpinner />
+      </div>
+    </AdminShell>
   );
 }

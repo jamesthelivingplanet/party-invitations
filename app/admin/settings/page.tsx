@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/admin-auth";
-import { replyDeadlineDate } from "@/lib/event";
+import { replyDeadlineDate, timeZoneOptions } from "@/lib/event";
 import { formatDate } from "@/lib/party";
 import { eventStore } from "@/lib/stores";
 import { AdminShell } from "../shell";
@@ -82,10 +82,13 @@ export default async function Settings(props: PageProps<"/admin/settings">) {
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="timeZone" className={label}>Time zone</label>
-            <input id="timeZone" name="timeZone" defaultValue={event.timeZone} required maxLength={64} className={field} placeholder="America/New_York" />
+            <select id="timeZone" name="timeZone" defaultValue={event.timeZone} required className={field}>
+              {timeZoneOptions(event.timeZone).map(([zone, name]) => (
+                <option key={zone} value={zone}>{name}</option>
+              ))}
+            </select>
             <p className={hint}>
-              Where the event happens. Replies close at the end of the deadline day in this time zone. Use a name like
-              America/Chicago or America/Los_Angeles.
+              Where the event happens. Replies close at the end of the deadline day in this time zone.
             </p>
           </div>
           <div className="sm:col-span-2">

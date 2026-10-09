@@ -73,6 +73,11 @@ const en = {
   yourReplyYes: (n: number) => `Coming: ${n} ${n === 1 ? "person" : "people"}`,
   yourReplyNo: "Not coming",
   yourReplyNone: "You did not send a reply.",
+  allSetTitle: "You're all set",
+  allSetThanks: "Thanks! Your reply is in.",
+  changeReply: "Change my reply",
+  partySizeLabel: "Party size",
+  companionsLabel: "Coming with you",
   language: "Idioma",
   switchTo: "Español",
 };
@@ -143,6 +148,12 @@ const es: typeof en = {
   yourReplyYes: (n) => `Vienes: ${n} ${n === 1 ? "persona" : "personas"}`,
   yourReplyNo: "No vienes",
   yourReplyNone: "No enviaste una respuesta.",
+  // TODO(native review): Spanish for the reply summary screen.
+  allSetTitle: "Todo listo",
+  allSetThanks: "¡Gracias! Recibimos tu respuesta.",
+  changeReply: "Cambiar mi respuesta",
+  partySizeLabel: "Número de personas",
+  companionsLabel: "Vienen contigo",
   language: "Language",
   switchTo: "English",
 };

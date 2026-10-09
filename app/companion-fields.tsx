@@ -20,6 +20,8 @@ export function CompanionFields({
   initialCompanions?: Companion[];
 }) {
   const t = dictionaries[locale];
+  // What the box shows (may be empty or out of range while typing) and the Party size the Companion rows follow.
+  const [text, setText] = useState(String(initialPartySize));
   const [size, setSize] = useState(initialPartySize);
 
   return (
@@ -31,8 +33,17 @@ export function CompanionFields({
           type="number"
           min={1}
           max={MAX_PARTY_SIZE}
-          value={size}
-          onChange={(e) => setSize(clampPartySize(e.target.value))}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            // An empty box means "still typing": keep the rows as they are until the Guest leaves the box.
+            if (e.target.value.trim() !== "") setSize(clampPartySize(e.target.value));
+          }}
+          onBlur={() => {
+            const fixed = clampPartySize(text);
+            setSize(fixed);
+            setText(String(fixed));
+          }}
           className={input}
         />
       </label>
@@ -69,7 +80,7 @@ export function CompanionFields({
 
 /** Reads Party size and Companions back out of a form that used CompanionFields. */
 export function readParty(form: FormData): { partySize: number; companions: Companion[] } {
-  const partySize = Number(form.get("partySize")) || 1;
+  const partySize = clampPartySize(form.get("partySize"));
   const companions = Array.from({ length: partySize - 1 }, (_, i) => ({
     name: String(form.get(`companion-name-${i}`) ?? ""),
     kind: String(form.get(`companion-kind-${i}`) ?? "") as Companion["kind"],

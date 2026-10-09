@@ -324,3 +324,23 @@ body {
   .rc-shadow { transform: translateX(-4%) scale(0.6); opacity: 0.4; }
   .rc-dust, .rc-impact { opacity: 0; }
 }
+
+/* Car spinner: small racing-car loading indicator (app/car-spinner.tsx) */
+.car-spinner-body {
+  animation: car-spinner-bob 0.4s ease-in-out infinite alternate;
+}
+.car-spinner-road {
+  animation: car-spinner-road 0.5s linear infinite;
+}
+@keyframes car-spinner-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-2.5px); }
+}
+@keyframes car-spinner-road {
+  to { transform: translateX(32px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .car-spinner *, .car-spinner *::before {
+    animation: none !important;
+  }
+}

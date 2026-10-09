@@ -57,7 +57,7 @@ test("the Host copies a message, the Guest shows as Sent, can be toggled, and Re
   await page.goto(`${personal}?lang=en`);
   await page.getByRole("button", { name: "Yes!" }).click();
   await page.getByRole("button", { name: "Send reply" }).click();
-  await expect(page.getByText("You're on the starting grid!")).toBeVisible(); // wait until the Reply is saved
+  await expect(page.getByText("You're all set")).toBeVisible(); // wait until the Reply is saved
 
   await page.goto("/admin/invitations");
   await expect(page.locator("li[data-guest='Zelda Enviada']").getByTestId("status")).toHaveText("Replied");
