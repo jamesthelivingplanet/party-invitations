@@ -51,7 +51,7 @@ test("the Host copies a message, the Guest shows as Sent, can be toggled, and Re
   await page.goto("/admin/guests");
   const personal = await page.locator("li", { hasText: "Zelda Enviada" }).first().locator("[data-personal-path]").getAttribute("data-personal-path");
   await page.goto("/admin/invitations");
-  await page.getByRole("link", { name: "Not replied" }).click();
+  await page.getByRole("button", { name: "Not replied" }).click();
   await expect(page.locator("li[data-guest='Zelda Enviada']")).toBeVisible();
 
   await page.goto(`${personal}?lang=en`);
@@ -61,7 +61,7 @@ test("the Host copies a message, the Guest shows as Sent, can be toggled, and Re
 
   await page.goto("/admin/invitations");
   await expect(page.locator("li[data-guest='Zelda Enviada']").getByTestId("status")).toHaveText("Replied");
-  await page.getByRole("link", { name: "Not replied" }).click();
+  await page.getByRole("button", { name: "Not replied" }).click();
   await expect(page.locator("li[data-guest='Zelda Enviada']")).toHaveCount(0);
 });
 

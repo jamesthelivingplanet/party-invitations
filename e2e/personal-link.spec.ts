@@ -162,7 +162,7 @@ test("Not [name]? records the Reply for the Guest the person is, and leaves the 
   await page.goto("/admin");
   await expect(page.locator("li", { hasText: "Nora Owner" }).filter({ hasText: "Coming" }).first()).toBeVisible();
   await page.goto(path);
-  await expect(page.getByRole("button", { name: "Yes!" })).toHaveClass(/bg-red-600/);
+  await expect(page.getByTestId("reply-answer")).toHaveText("Coming: 1 person");
 });
 
 test("Not [name]? with nobody matched leaves a Request marked as a forwarded Personal link, in Spanish", async ({ page }) => {

@@ -24,6 +24,7 @@ export async function replyOnSharedLink(
 }
 
 export async function dashboardNumbers(page: Page) {
+  await expect(page.locator("section[aria-label=Summary]")).toBeVisible(); // the admin shows a loading state first
   const text = (await page.locator("section[aria-label=Summary]").innerText()).replace(/\s+/g, " ");
   const n = (label: string) => Number(new RegExp(`${label}\\s+(\\d+)`, "i").exec(text)?.[1]);
   const numbers = {

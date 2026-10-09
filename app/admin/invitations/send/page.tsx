@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { invitationStore } from "@/lib/stores";
 import { AdminShell } from "../../shell";
@@ -49,7 +50,7 @@ export default async function SendNext(props: PageProps<"/admin/invitations/send
             {message}
           </pre>
           <ShareButton key={next.guestId} guestId={next.guestId} message={message} big />
-          <a href={skipHref} className={`${link} w-full`}>Skip for now</a>
+          <Link href={skipHref} className={`${link} w-full`}>Skip for now</Link>
         </div>
       ) : remaining === 0 ? (
         <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
@@ -60,12 +61,12 @@ export default async function SendNext(props: PageProps<"/admin/invitations/send
           <p role="status" className="rounded-xl bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800 ring-1 ring-inset ring-sky-200">
             Only skipped Guests are left ({skippedLeft}).
           </p>
-          <a href="/admin/invitations/send" className={link}>Go back to the skipped Guests</a>
+          <Link href="/admin/invitations/send" className={link}>Go back to the skipped Guests</Link>
         </div>
       )}
 
       <p>
-        <a href="/admin/invitations" className={link}>Back to all Invitations</a>
+        <Link href="/admin/invitations" className={link}>Back to all Invitations</Link>
       </p>
     </AdminShell>
   );

@@ -76,16 +76,21 @@ export default function PersonalReplyForm({
 
   if (!editing) {
     return (
-      <ReplySummary
-        locale={locale}
-        current={saved}
-        thanks={thanks}
-        onChange={() => {
-          setThanks(false);
-          setAttending(saved?.attending ?? null);
-          setEditing(true);
-        }}
-      />
+      <div className="space-y-4">
+        <ReplySummary
+          locale={locale}
+          current={saved}
+          thanks={thanks}
+          onChange={() => {
+            setThanks(false);
+            setAttending(saved?.attending ?? null);
+            setEditing(true);
+          }}
+        />
+        <button type="button" onClick={() => setNotMe(true)} className="text-sm font-bold text-zinc-300 underline">
+          {t.notYou(guestName)}
+        </button>
+      </div>
     );
   }
 

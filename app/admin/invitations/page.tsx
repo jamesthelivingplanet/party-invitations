@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { placeholders } from "@/lib/invitations";
 import { guestStore, invitationStore } from "@/lib/stores";
 import { Section } from "../ui";
 import { AdminShell } from "../shell";
-import { resetGuestMessage, saveGuestMessage, saveTemplate, toggleSent } from "./actions";
-import { ShareButton } from "./share-button";
+import { saveTemplate } from "./actions";
+import { GuestList } from "./guest-list";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Invitations", robots: { index: false } };
@@ -19,7 +20,6 @@ const primary =
 export default async function Invitations(props: PageProps<"/admin/invitations">) {
   await requireAdminPage();
   const { error, saved, guest: guestParam, filter, edited } = await props.searchParams;
-  const notReplied = filter === "not-replied";
   const guests = await guestStore.list();
   const chosenId = typeof guestParam === "string" ? guestParam : "";
   const chosen = guests.find((g) => g.id === chosenId) ?? guests[0];
@@ -28,15 +28,9 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const rows = await invitationStore.overview({ notReplied });
+  const rows = await invitationStore.overview();
   const origin = `${proto}://${host}`;
-  const messages = new Map(await Promise.all(rows.map(async (r) => [r.guestId, await invitationStore.messageFor(r.guestId, { origin })] as const)));
-  const statusLabel = { not_sent: "Not sent", sent: "Sent", replied: "Replied" } as const;
-  const statusStyle = {
-    not_sent: "bg-zinc-100 text-zinc-700 ring-zinc-300",
-    sent: "bg-sky-50 text-sky-800 ring-sky-200",
-    replied: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  } as const;
+  const messages = Object.fromEntries(await Promise.all(rows.map(async (r) => [r.guestId, await invitationStore.messageFor(r.guestId, { origin })] as const)));
   const preview = chosen ? await invitationStore.messageFor(chosen.id, { origin: `${proto}://${host}` }) : null;
 
   return (
@@ -68,61 +62,8 @@ export default async function Invitations(props: PageProps<"/admin/invitations">
 
       <Section title="Send">
         <div className="space-y-3">
-          <a href="/admin/invitations/send" className={`${primary} w-full`}>Send next Guest</a>
-          <nav aria-label="Filter" className="flex gap-2 text-sm font-semibold">
-            <a href="/admin/invitations" aria-current={!notReplied ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-xl px-4 ring-1 ring-inset ${!notReplied ? "bg-zinc-900 text-white ring-zinc-900" : "bg-white text-zinc-800 ring-zinc-300"}`}>
-              All Guests
-            </a>
-            <a href="/admin/invitations?filter=not-replied" aria-current={notReplied ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-xl px-4 ring-1 ring-inset ${notReplied ? "bg-zinc-900 text-white ring-zinc-900" : "bg-white text-zinc-800 ring-zinc-300"}`}>
-              Not replied
-            </a>
-          </nav>
-          {rows.length === 0 ? (
-            <p className="text-sm text-zinc-600">{notReplied ? "Everyone has replied." : "No Guests yet."}</p>
-          ) : (
-            <ul className="divide-y divide-zinc-200 rounded-2xl bg-white ring-1 ring-zinc-200">
-              {rows.map((r) => (
-                <li key={r.guestId} data-guest={r.name} className="space-y-2 p-4">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="min-w-0 break-words font-semibold text-zinc-900">{r.name}</span>
-                    <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">{r.language === "es" ? "Spanish" : "English"}</span>
-                    <span data-testid="status" className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[r.status]}`}>
-                      {statusLabel[r.status]}
-                    </span>
-                    {r.hasCustomMessage && <span data-testid="edited" className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Edited</span>}
-                    {r.sentAt && <time dateTime={r.sentAt} className="text-xs text-zinc-500">sent {new Date(r.sentAt).toISOString().slice(0, 16).replace("T", " ")} UTC</time>}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <ShareButton guestId={r.guestId} message={messages.get(r.guestId) ?? ""} />
-                    <form action={toggleSent}>
-                      <input type="hidden" name="guest" value={r.guestId} />
-                      <input type="hidden" name="sent" value={r.sentAt ? "0" : "1"} />
-                      <button className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-zinc-700 underline-offset-2 hover:underline">
-                        {r.sentAt ? "Mark not sent" : "Mark sent"}
-                      </button>
-                    </form>
-                  </div>
-                  <details className="group">
-                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-zinc-700 underline-offset-2 hover:underline">Edit message</summary>
-                    <div className="space-y-3 pt-2">
-                      <form action={saveGuestMessage} className="space-y-3">
-                        <input type="hidden" name="guest" value={r.guestId} />
-                        <label htmlFor={`msg-${r.guestId}`} className={label}>Message for {r.name} only</label>
-                        <textarea id={`msg-${r.guestId}`} name="body" defaultValue={messages.get(r.guestId) ?? ""} rows={10} maxLength={2000} className={field} />
-                        <button className={primary}>Save for {r.name} only</button>
-                      </form>
-                      {r.hasCustomMessage && (
-                        <form action={resetGuestMessage}>
-                          <input type="hidden" name="guest" value={r.guestId} />
-                          <button className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-rose-700 underline-offset-2 hover:underline">Reset to main message</button>
-                        </form>
-                      )}
-                    </div>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Link href="/admin/invitations/send" className={`${primary} w-full`}>Send next Guest</Link>
+          <GuestList rows={rows} messages={messages} initialNotReplied={filter === "not-replied"} />
         </div>
       </Section>
 
