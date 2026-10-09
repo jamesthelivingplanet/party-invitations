@@ -9,10 +9,16 @@ function scriptedJev(script: Record<string, JevAnswer>): Jev {
   return async (input) => script[input.name] ?? { picked: "none", probabilities: { none: 0.9 } };
 }
 
-/** A Jev that is down: every Shared-link Reply is saved for the Host to review. */
+/** A Jev that is down: nobody can be Matched, so every Shared-link Reply is "no match". */
 const jevDown: Jev = async () => {
   throw new Error("down");
 };
+
+/** A Jev that is middling-sure about the first Guest on the list, so every Reply waits for the Host's review. */
+const middling: Jev = async (_input, offered) =>
+  offered[0]
+    ? { picked: offered[0].id, probabilities: { [offered[0].id]: 0.6, none: 0.4 } }
+    : { picked: "none", probabilities: { none: 0.9 } };
 
 async function setup(script: Record<string, JevAnswer> = {}, jev: Jev = scriptedJev(script)) {
   const db = testDb();
@@ -43,7 +49,7 @@ test("a confident match is confirmed and shows the guest as coming", async () =>
   const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(s) }) });
 
-  const outcome = await store.submitShared(shared("Sarah", { ...party(3) }));
+  const { outcome } = await store.submitShared(shared("Sarah", { ...party(3) }));
 
   expect(outcome).toBe("confirmed");
   const summary = await store.summary();
@@ -58,7 +64,7 @@ test("a middling match waits for review with the guessed guest", async () => {
   const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: unsure(s) }) });
 
-  expect(await store.submitShared(shared("Sarah"))).toBe("review");
+  expect((await store.submitShared(shared("Sarah"))).outcome).toBe("review");
 
   const { review, coming, noReply } = await store.summary();
   expect(coming).toEqual([]);
@@ -67,7 +73,7 @@ test("a middling match waits for review with the guessed guest", async () => {
   expect(review[0]).toMatchObject({ suggestedGuestId: s.id, suggestedGuestName: "Sarah Johnson" });
 });
 
-test("a 'nobody' answer with a plausible runner-up goes to review with that guest", async () => {
+test("a 'nobody' answer with a plausible runner-up is no match, never review", async () => {
   const db = testDb();
   const g = createGuestStore(db);
   const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
@@ -76,26 +82,66 @@ test("a 'nobody' answer with a plausible runner-up goes to review with that gues
     jev: scriptedJev({ Sara: { picked: "none", probabilities: { none: 0.7, [s.id]: 0.2 } } }),
   });
 
-  expect(await store.submitShared(shared("Sara"))).toBe("review");
+  expect((await store.submitShared(shared("Sara"))).outcome).toBe("no_match");
 
-  const { review } = await store.summary();
-  expect(review[0]).toMatchObject({ suggestedGuestId: s.id });
+  expect((await store.summary()).review).toEqual([]);
+  expect((await store.summary()).totalReplies).toBe(0);
 });
 
-test("a 'nobody' answer with no plausible runner-up is no match, and still needs the host", async () => {
+test("a weak match just under the review threshold is no match, and the Request keeps Jev's guess for the Host", async () => {
   const db = testDb();
   const g = createGuestStore(db);
-  const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const s = await g.add({ name: "Michael Johnson", language: "en", notes: "" });
   const store = createReplyStore(db, {
     guests: g,
-    jev: scriptedJev({ Stranger: { picked: "none", probabilities: { none: 0.9, [s.id]: 0.05 } } }),
+    jev: scriptedJev({ Plants: { picked: s.id, probabilities: { [s.id]: 0.35, none: 0.65 } } }),
   });
 
-  expect(await store.submitShared(shared("Stranger"))).toBe("no_match");
+  const { outcome, token } = await store.submitShared(shared("Plants", { relation: "From school" }));
 
-  // Nothing is saved yet: the visitor is asked for their details, which become a Request.
+  expect(outcome).toBe("no_match");
   expect((await store.summary()).review).toEqual([]);
   expect(await store.listRequests()).toEqual([]);
+
+  expect(await store.submitRequest({ name: "Plants", source: "shared", contacts: { phone: "555" }, matchToken: token })).toBe("recorded");
+  const [r] = await store.listRequests();
+  expect(r.guess).toEqual({ guestId: s.id, guestName: "Michael Johnson", confidence: 0.35 });
+  expect(r.jevUnavailable).toBe(false);
+});
+
+test("a guess token makes one Request, and a made-up token adds nothing", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  const s = await g.add({ name: "Michael Johnson", language: "en", notes: "" });
+  const store = createReplyStore(db, {
+    guests: g,
+    jev: scriptedJev({ Plants: { picked: s.id, probabilities: { [s.id]: 0.35, none: 0.65 } } }),
+  });
+  const { token } = await store.submitShared(shared("Plants"));
+
+  await store.submitRequest({ name: "A", source: "shared", contacts: { phone: "1" }, matchToken: token });
+  await store.submitRequest({ name: "B", source: "shared", contacts: { phone: "1" }, matchToken: token });
+  await store.submitRequest({ name: "C", source: "shared", contacts: { phone: "1" }, matchToken: "made-up" });
+
+  const byName = Object.fromEntries((await store.listRequests()).map((r) => [r.name, r.guess]));
+  expect(byName.A).toMatchObject({ guestName: "Michael Johnson" });
+  expect(byName.B).toBeNull();
+  expect(byName.C).toBeNull();
+});
+
+test("a 'nobody' answer with no runner-up is no match with no guess", async () => {
+  const db = testDb();
+  const g = createGuestStore(db);
+  await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({}) });
+
+  const { outcome, token } = await store.submitShared(shared("Stranger"));
+
+  expect(outcome).toBe("no_match");
+  expect((await store.summary()).review).toEqual([]);
+  expect(await store.listRequests()).toEqual([]);
+  await store.submitRequest({ name: "Stranger", source: "shared", contacts: { phone: "1" }, matchToken: token });
+  expect((await store.listRequests())[0].guess).toBeNull();
 });
 
 test("archived guests are never offered as matches", async () => {
@@ -112,21 +158,52 @@ test("archived guests are never offered as matches", async () => {
   };
   const store = createReplyStore(db, { guests: g, jev });
 
-  expect(await store.submitShared(shared("Sarah"))).toBe("no_match");
+  expect((await store.submitShared(shared("Sarah"))).outcome).toBe("no_match");
 });
 
-test("when Jev is unreachable the reply is still saved for review", async () => {
+test("when Jev is unreachable it is no match, nothing goes to review, and the Request says Jev was unavailable", async () => {
+  const { replies } = await setup({}, jevDown);
+
+  const { outcome, token } = await replies.submitShared(shared("Sarah"));
+
+  expect(outcome).toBe("no_match");
+  expect((await replies.summary()).review).toEqual([]);
+  await replies.submitRequest({ name: "Sarah", source: "shared", contacts: { phone: "1" }, matchToken: token });
+  expect((await replies.listRequests())[0]).toMatchObject({ jevUnavailable: true, guess: null });
+});
+
+test("a middling match gives the visitor a token to attach optional contact details, shown only on the review item", async () => {
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const mine = await replies.submitShared(shared("Sarah"));
+  const other = await replies.submitShared(shared("Sara"));
+  expect(mine.outcome).toBe("review");
+  expect(mine.token).toBeTruthy();
+  expect(mine.token).not.toBe(other.token);
+
+  expect(await replies.attachReviewContact(mine.token!, "  555-0100 or sarah@example.com ")).toBe("saved");
+
+  const review = (await replies.summary()).review;
+  expect(review.find((r) => r.name === "Sarah")?.reviewContact).toBe("555-0100 or sarah@example.com");
+  expect(review.find((r) => r.name === "Sara")?.reviewContact).toBe("");
+});
+
+test("contact details cannot be attached without the visitor's token", async () => {
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  await replies.submitShared(shared("Sarah"));
+
+  expect(await replies.attachReviewContact("", "x")).toBe("not_found");
+  expect(await replies.attachReviewContact("1", "x")).toBe("not_found");
+  expect((await replies.summary()).review[0].reviewContact).toBe("");
+});
+
+test("a confident match gives no token", async () => {
   const db = testDb();
   const g = createGuestStore(db);
-  const store = createReplyStore(db, {
-    guests: g,
-    jev: async () => {
-      throw new Error("down");
-    },
-  });
-
-  expect(await store.submitShared(shared("Sarah"))).toBe("review");
-  expect((await store.summary()).review).toHaveLength(1);
+  const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
+  const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(s) }) });
+  expect((await store.submitShared(shared("Sarah"))).token).toBeUndefined();
 });
 
 test("a guest's latest reply is the one that counts", async () => {
@@ -191,7 +268,7 @@ test("the host can assign a reply to a different guest", async () => {
   const g = createGuestStore(db);
   await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const dave = await g.add({ name: "Dave Example", language: "en", notes: "" });
-  const store = createReplyStore(db, { guests: g, jev: jevDown });
+  const store = createReplyStore(db, { guests: g, jev: middling });
   await store.submitShared(shared("Dad"));
   const [pending] = (await store.summary()).review;
 
@@ -201,7 +278,8 @@ test("the host can assign a reply to a different guest", async () => {
 });
 
 test("assigning to an unknown guest is refused", async () => {
-  const { replies } = await setup({}, jevDown);
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
   await replies.submitShared(shared("Dad"));
   const [pending] = (await replies.summary()).review;
 
@@ -209,7 +287,8 @@ test("assigning to an unknown guest is refused", async () => {
 });
 
 test("marking a reply not invited sets it aside, and it can be brought back", async () => {
-  const { replies } = await setup({}, jevDown);
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
   await replies.submitShared(shared("Stranger"));
   const [pending] = (await replies.summary()).review;
 
@@ -227,7 +306,8 @@ test("marking a reply not invited sets it aside, and it can be brought back", as
 });
 
 test("accepting a review item as a request makes a real Guest in the chosen language and counts the Reply", async () => {
-  const { guests, replies } = await setup({}, jevDown);
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
   await replies.submitShared(shared("Stranger", { ...party(2) }));
   const [pending] = (await replies.summary()).review;
 
@@ -237,14 +317,15 @@ test("accepting a review item as a request makes a real Guest in the chosen lang
   expect(summary.review).toEqual([]);
   expect(summary.coming[0]).toMatchObject({ name: "Pat Newcomer", by: "assigned" });
   expect(summary.headcount).toBe(2);
-  const [guest] = await guests.list();
+  const guest = (await guests.list()).find((x) => x.name === "Pat Newcomer")!;
   expect(guest).toMatchObject({ name: "Pat Newcomer", language: "es" });
   expect(guest.personalLinkCode).toBeTruthy();
   await expect(replies.acceptReviewAsGuest(pending.id, "  ", "en")).rejects.toThrow();
 });
 
 test("the summary counts every reply received, however it was sorted", async () => {
-  const { replies } = await setup({}, jevDown);
+  const { guests, replies } = await setup({}, middling);
+  await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
   await replies.submitShared(shared("A"));
   await replies.submitShared(shared("B"));
 
@@ -400,10 +481,10 @@ test("a Personal link Reply is refused from the first moment after the deadline 
 
 test("a Shared link Reply is accepted on the last moment and refused after the deadline", async () => {
   const open = await withDeadline(7, LAST_MOMENT);
-  expect(await open.replies.submitShared(shared("Anyone"))).not.toBe("closed");
+  expect((await open.replies.submitShared(shared("Anyone"))).outcome).not.toBe("closed");
 
   const closed = await withDeadline(7, FIRST_AFTER);
-  expect(await closed.replies.submitShared(shared("Anyone"))).toBe("closed");
+  expect((await closed.replies.submitShared(shared("Anyone"))).outcome).toBe("closed");
   expect((await closed.replies.summary()).totalReplies).toBe(0);
 });
 
@@ -415,10 +496,7 @@ test("with no deadline set, Replies are always accepted", async () => {
 });
 
 test("the Host can still assign a Reply after the deadline", async () => {
-  const unreachable: Jev = async () => {
-    throw new Error("down");
-  };
-  const { replies, guests, clock } = await withDeadline(7, LAST_MOMENT, unreachable);
+  const { replies, guests, clock } = await withDeadline(7, LAST_MOMENT, middling);
   const tom = await guests.add({ name: "Tom", language: "en", notes: "" });
   await replies.submitShared(shared("Unknown person"));
   const [pending] = (await replies.summary()).review;
@@ -503,11 +581,11 @@ test("the Shared link follows the same Companion rules", async () => {
   const s = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(s) }) });
 
-  expect(await store.submitShared(shared("Sarah", { partySize: 3, companions: [adult("Tom")] }))).toBe("companion_count");
-  expect(await store.submitShared(shared("Sarah", { partySize: 2, companions: [adult("")] }))).toBe("companion_incomplete");
+  expect((await store.submitShared(shared("Sarah", { partySize: 3, companions: [adult("Tom")] }))).outcome).toBe("companion_count");
+  expect((await store.submitShared(shared("Sarah", { partySize: 2, companions: [adult("")] }))).outcome).toBe("companion_incomplete");
   expect((await store.summary()).totalReplies).toBe(0);
 
-  expect(await store.submitShared(shared("Sarah", { partySize: 2, companions: [child("Mia")] }))).toBe("confirmed");
+  expect((await store.submitShared(shared("Sarah", { partySize: 2, companions: [child("Mia")] }))).outcome).toBe("confirmed");
   const summary = await store.summary();
   expect(summary.coming[0].reply.companions).toEqual([child("Mia")]);
   expect(summary.headcount).toBe(2);
@@ -519,7 +597,7 @@ test("a Reply with Party size one needs no Companions on either link", async () 
   const sarah = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
 
   expect(await replies.submitPersonal(sarah.personalLinkCode, { attending: true, partySize: 1 })).toBe("recorded");
-  expect(await replies.submitShared(shared("Nobody Known"))).toBe("no_match");
+  expect((await replies.submitShared(shared("Nobody Known"))).outcome).toBe("no_match");
 });
 
 test("a Reply saved before Companions existed still works and counts every person as an adult", async () => {
@@ -695,6 +773,49 @@ test("a Request that is already gone cannot be accepted or declined again", asyn
   expect(await guests.list()).toHaveLength(1);
 });
 
+test("'This is an existing Guest' gives the Request's Reply to the chosen Guest and removes the Request", async () => {
+  const { guests, replies } = await setup();
+  const michael = await guests.add({ name: "Michael Johnson", language: "en", notes: "" });
+  await replies.submitRequest(
+    request({ name: "Plants", attending: true, partySize: 3, companions: [{ name: "Sam", kind: "adult" }, { name: "Mia", kind: "child" }] }),
+  );
+  const [req] = await replies.listRequests();
+
+  expect(await replies.assignRequestToGuest(req.id, michael.id)).toBe("assigned");
+
+  expect(await replies.listRequests()).toEqual([]);
+  expect(await guests.list()).toHaveLength(1);
+  const s = await replies.summary();
+  expect(s.coming[0]).toMatchObject({ name: "Michael Johnson" });
+  expect(s.headcount).toBe(3);
+  expect(s.children).toBe(1);
+});
+
+test("assigning a Request with no answer leaves the Guest without a Reply", async () => {
+  const { guests, replies } = await setup();
+  const michael = await guests.add({ name: "Michael Johnson", language: "en", notes: "" });
+  await replies.submitRequest(request({}));
+  const [req] = await replies.listRequests();
+
+  expect(await replies.assignRequestToGuest(req.id, michael.id)).toBe("assigned");
+  expect((await replies.summary()).noReply.map((g) => g.name)).toEqual(["Michael Johnson"]);
+});
+
+test("a Request is only assigned to an active Guest, and only once", async () => {
+  const { guests, replies } = await setup();
+  const michael = await guests.add({ name: "Michael Johnson", language: "en", notes: "" });
+  const gone = await guests.add({ name: "Gone Guest", language: "en", notes: "" });
+  await guests.archive(gone.id);
+  await replies.submitRequest(request({}));
+  const [req] = await replies.listRequests();
+
+  expect(await replies.assignRequestToGuest(req.id, "gst_nope")).toBe("unknown_guest");
+  expect(await replies.assignRequestToGuest(req.id, gone.id)).toBe("unknown_guest");
+  expect(await replies.listRequests()).toHaveLength(1);
+  expect(await replies.assignRequestToGuest(req.id, michael.id)).toBe("assigned");
+  expect(await replies.assignRequestToGuest(req.id, michael.id)).toBe("not_found");
+});
+
 // "Not [name]?" on a Personal link
 const notMe = (name: string, over: Partial<SharedReply> = {}) => shared(name, over);
 
@@ -706,7 +827,7 @@ test("Not [name]?: matching another guest records their reply and leaves the lin
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: sure(other) }) });
   await store.submitPersonal(owner.personalLinkCode, { attending: true, ...party(2) });
 
-  const outcome = await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }));
+  const { outcome } = await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }));
 
   expect(outcome).toBe("confirmed");
   expect(await store.currentForPersonalLink(owner.personalLinkCode)).toEqual({
@@ -725,7 +846,7 @@ test("Not [name]?: identifying as the link's own guest records the reply for tha
   const owner = await g.add({ name: "Sarah Johnson", language: "en", notes: "" });
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Sarah: sure(owner) }) });
 
-  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Sarah", { ...party(2) }))).toBe("confirmed");
+  expect((await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Sarah", { ...party(2) }))).outcome).toBe("confirmed");
   expect((await store.summary()).coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
 });
 
@@ -737,7 +858,7 @@ test("Not [name]?: an unsure match goes to review and does not touch the link ow
   const store = createReplyStore(db, { guests: g, jev: scriptedJev({ Emma: unsure(other) }) });
   await store.submitPersonal(owner.personalLinkCode, { attending: true, partySize: 1 });
 
-  expect(await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }))).toBe("review");
+  expect((await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }))).outcome).toBe("review");
 
   const summary = await store.summary();
   expect(summary.review.map((r) => r.suggestedGuestName)).toEqual(["Emma Rodriguez"]);
@@ -749,7 +870,7 @@ test("Not [name]?: nobody matched saves nothing and the visitor can leave a Requ
   const { guests, replies } = await setup();
   const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
 
-  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Stranger"))).toBe("no_match");
+  expect((await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Stranger"))).outcome).toBe("no_match");
   expect((await replies.summary()).totalReplies).toBe(0);
 
   const input: RequestInput = { name: "Stranger", source: "personal_forward", contacts: { phone: "555" } };
@@ -760,15 +881,27 @@ test("Not [name]?: nobody matched saves nothing and the visitor can leave a Requ
 test("Not [name]?: unknown, archived and badly formed are refused", async () => {
   const { guests, replies } = await setup();
   const owner = await guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
-  expect(await replies.submitFromPersonalLink("nope", notMe("Emma"))).toBe("unknown_link");
-  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { partySize: 3 }))).toBe("companion_count");
+  expect((await replies.submitFromPersonalLink("nope", notMe("Emma"))).outcome).toBe("unknown_link");
+  expect((await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { partySize: 3 }))).outcome).toBe("companion_count");
   await guests.archive(owner.id);
-  expect(await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma"))).toBe("no_longer_available");
+  expect((await replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma"))).outcome).toBe("no_longer_available");
 });
 
 test("Not [name]? follows the Reply deadline too", async () => {
   const closed = await withDeadline(7, FIRST_AFTER);
   const owner = await closed.guests.add({ name: "Sarah Johnson", language: "en", notes: "" });
-  expect(await closed.replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Anyone"))).toBe("closed");
+  expect((await closed.replies.submitFromPersonalLink(owner.personalLinkCode, notMe("Anyone"))).outcome).toBe("closed");
   expect((await closed.replies.summary()).totalReplies).toBe(0);
+});
+
+test("an existing database from before the weak-guess columns is upgraded in place", async () => {
+  const db = testDb();
+  await db.execute(`CREATE TABLE requests (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    name TEXT NOT NULL, attending INTEGER, party_size INTEGER NOT NULL, companions TEXT NOT NULL, source TEXT NOT NULL,
+    own_words TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL, whatsapp TEXT NOT NULL, messenger TEXT NOT NULL, other_contact TEXT NOT NULL)`);
+  await db.execute(`INSERT INTO requests (name, party_size, companions, source, own_words, phone, email, whatsapp, messenger, other_contact)
+    VALUES ('Old', 1, '[]', 'shared', '', '1', '', '', '', '')`);
+  const replies = createReplyStore(db, { guests: createGuestStore(db), jev: scriptedJev({}) });
+
+  expect((await replies.listRequests())[0]).toMatchObject({ name: "Old", guess: null, jevUnavailable: false });
 });

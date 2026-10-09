@@ -7,6 +7,8 @@ export const db = createClient({
 
 // Columns added after the first release; applied to existing databases on first use.
 const LATER_COLUMNS: [string, string][] = [
+  ["contact_token", "TEXT"], // unguessable token given to the visitor of a review Reply, to attach optional contact details
+  ["review_contact", "TEXT"], // those optional details; shown only to the Host
   ["decision", "TEXT"], // host decision: 'assigned' | 'new_guest' | 'dismissed' | NULL
   ["assigned_guest_id", "TEXT"],
   ["new_guest_name", "TEXT"],
@@ -45,12 +47,35 @@ export async function ensureRsvpSchema(client: Client) {
       other_contact TEXT NOT NULL
     )
   `);
-  const info = await client.execute("PRAGMA table_info(rsvps)");
+  // Jev's weak guess for a visitor it could not place, waiting for the Request they may leave. Host-only data.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS match_guesses (
+      token TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      guest_id TEXT,
+      guest_name TEXT,
+      confidence REAL,
+      jev_unavailable INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await addMissingColumns(client, "rsvps", LATER_COLUMNS);
+  await addMissingColumns(client, "requests", REQUEST_LATER_COLUMNS);
+}
+
+const REQUEST_LATER_COLUMNS: [string, string][] = [
+  ["guess_guest_id", "TEXT"], // Jev's closest Guest when too unsure to place the person
+  ["guess_guest_name", "TEXT"],
+  ["guess_confidence", "REAL"],
+  ["jev_unavailable", "INTEGER"], // 1 when Jev could not be reached
+];
+
+async function addMissingColumns(client: Client, table: string, columns: [string, string][]) {
+  const info = await client.execute(`PRAGMA table_info(${table})`);
   const have = new Set(info.rows.map((r) => String(r.name)));
-  for (const [col, type] of LATER_COLUMNS) {
+  for (const [col, type] of columns) {
     if (have.has(col)) continue;
     try {
-      await client.execute(`ALTER TABLE rsvps ADD COLUMN ${col} ${type}`);
+      await client.execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
     } catch (err) {
       // Another instance may have added it first.
       if (!String(err).includes("duplicate column")) throw err;

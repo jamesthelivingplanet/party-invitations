@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     companions: readCompanions(body),
     source: forwarded ? "personal_forward" : "shared",
     ownWords: text(body?.ownWords, 1000),
+    matchToken: text(body?.matchToken, 100),
     contacts: {
       phone: text(c.phone, 200),
       email: text(c.email, 200),

@@ -56,3 +56,49 @@ test("the Host declines a Request after a second tap and nothing is counted", as
   await page.goto("/admin/invitations");
   await expect(page.getByText("Dee Clined")).toHaveCount(0);
 });
+
+test("a weak Match is not sent to review: the stranger leaves details, the Host sees the guess and gives the Request to that Guest", async ({ page }) => {
+  await loginAsHost(page);
+  const before = await dashboardNumbers(page);
+
+  await replyOnSharedLink(page, { name: "Weak Michael", relation: "weak-guess-case", coming: true, partySize: 2 });
+  await expect(page.getByText("We couldn't find your name on our list")).toBeVisible();
+  await expect(page.getByText("We got your reply!")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("Michael Johnson");
+  await page.fill("input[name=phone]", "555-0135");
+  await page.getByRole("button", { name: "Send my details" }).click();
+  await expect(page.getByText("We have your details and will get back to you soon.")).toBeVisible();
+
+  await page.goto("/admin");
+  expect((await dashboardNumbers(page)).review).toBe(before.review);
+
+  await page.goto("/admin/requests");
+  const card = page.locator("li", { hasText: "weak-guess-case" });
+  await expect(card).toContainText("Possibly Michael Johnson, 35%");
+
+  await card.getByRole("button", { name: "This is an existing Guest" }).click();
+  await expect(page.getByText("Give this reply to the chosen guest?")).toBeVisible();
+  await page.getByRole("button", { name: /^Cancel/ }).click();
+  await expect(card).toBeVisible();
+
+  await card.getByRole("button", { name: "This is an existing Guest" }).click();
+  await page.getByRole("button", { name: "Yes, confirm" }).click();
+  await expect(page.locator("li", { hasText: "weak-guess-case" })).toHaveCount(0);
+
+  await page.goto("/admin");
+  const after = await dashboardNumbers(page);
+  expect(after.headcount).toBe(before.headcount + 2);
+  await expect(page.locator("li", { hasText: "Michael Johnson" }).filter({ hasText: "2 people" })).toBeVisible();
+});
+
+test("when Jev is unavailable the visitor leaves details and the Host sees 'Jev unavailable'", async ({ page }) => {
+  await replyOnSharedLink(page, { name: "Jevdown", relation: "jev-down-case", coming: false });
+  await expect(page.getByText("We couldn't find your name on our list")).toBeVisible();
+  await page.fill("input[name=email]", "down@example.com");
+  await page.getByRole("button", { name: "Send my details" }).click();
+  await expect(page.getByText("We have your details and will get back to you soon.")).toBeVisible();
+
+  await loginAsHost(page);
+  await page.goto("/admin/requests");
+  await expect(page.locator("li", { hasText: "jev-down-case" })).toContainText("Jev unavailable");
+});

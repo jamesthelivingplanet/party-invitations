@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { decide } from "./actions";
 
-type Intent = "assign" | "new" | "dismiss" | "accept" | "decline";
+type Intent = "assign" | "new" | "dismiss" | "accept" | "decline" | "existing";
 type Variant = "primary" | "secondary" | "danger";
 
 const base =

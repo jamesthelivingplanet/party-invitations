@@ -17,10 +17,10 @@ export async function POST(request: Request) {
   const reply = { name, relation, attending, partySize, companions: readCompanions(body) };
   // A forwarded Personal link ("Not [name]?") goes through the same Matching; the code only has to be a live link.
   const code = typeof body?.code === "string" ? body.code.slice(0, 200) : "";
-  const outcome = code ? await replyStore.submitFromPersonalLink(code, reply) : await replyStore.submitShared(reply);
+  const { outcome, token } = code ? await replyStore.submitFromPersonalLink(code, reply) : await replyStore.submitShared(reply);
   const status = failureStatus(outcome);
   if (status) return Response.json({ error: outcome }, { status });
 
-  // Never names a Guest: only how sure the Match was.
-  return Response.json({ ok: true, attending, outcome });
+  // Never names a Guest: only how sure the Match was. The token belongs to this visitor alone (see SubmitResult).
+  return Response.json({ ok: true, attending, outcome, token });
 }

@@ -34,7 +34,12 @@ const en = {
   doneReviewTitle: "We got your reply!",
   doneReview: "We'll confirm it soon. Alex can't wait to see you at the party.",
   requestTitle: "We'd love to have you at the party",
-  requestIntro: "Leave your details here so we can get back to you.",
+  requestIntro:
+    "We couldn't find your name on our list, but we'd love to have you at the party! Leave your details here and we'll get back to you as soon as we can to make sure your invitation is right.",
+  reviewContactLabel: "How can we reach you if we need to check? (optional)",
+  reviewContactPh: "Phone, email, WhatsApp, Messenger…",
+  reviewContactSend: "Send",
+  reviewContactThanks: "Thanks, we have it.",
   requestWords: "Anything you'd like to tell us?",
   requestContactHint: "How can we reach you? Fill in at least one.",
   contactPhone: "Phone",
@@ -109,7 +114,14 @@ const es: typeof en = {
   doneReviewTitle: "¡Recibimos tu respuesta!",
   doneReview: "La confirmaremos pronto. Alex no puede esperar a verte en la fiesta.",
   requestTitle: "Nos encantaría tenerte en la fiesta",
-  requestIntro: "Deja tus datos aquí para que podamos contactarte.",
+  // TODO(native review)
+  requestIntro:
+    "No encontramos tu nombre en nuestra lista, ¡pero nos encantaría tenerte en la fiesta! Deja tus datos aquí y te contactaremos lo antes posible para asegurarnos de que tu invitación esté bien.",
+  // TODO(native review)
+  reviewContactLabel: "¿Cómo podemos contactarte si necesitamos verificar? (opcional)",
+  reviewContactPh: "Teléfono, correo, WhatsApp, Messenger…",
+  reviewContactSend: "Enviar",
+  reviewContactThanks: "Gracias, lo recibimos.",
   requestWords: "¿Quieres contarnos algo?",
   requestContactHint: "¿Cómo podemos contactarte? Llena al menos uno.",
   contactPhone: "Teléfono",

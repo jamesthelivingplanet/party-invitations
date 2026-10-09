@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/admin-auth";
-import { replyStore } from "@/lib/stores";
+import { guestStore, replyStore } from "@/lib/stores";
 import { ActionForm } from "../action-form";
 import { AdminShell } from "../shell";
 import { decideRequest } from "./actions";
@@ -12,7 +12,7 @@ const sourceLabel = { shared: "Shared link", personal_forward: "Forwarded Person
 
 export default async function Requests() {
   await requireAdminPage();
-  const requests = await replyStore.listRequests();
+  const [requests, guests] = await Promise.all([replyStore.listRequests(), guestStore.list()]);
   const now = new Date();
 
   return (
@@ -47,6 +47,20 @@ export default async function Requests() {
                     {r.attending && <PartySize n={r.partySize} />}
                     <Badge tone="blue">{sourceLabel[r.source]}</Badge>
                   </div>
+                  {(r.guess || r.jevUnavailable) && (
+                    <p className="text-sm text-zinc-700">
+                      {r.jevUnavailable ? (
+                        <Badge tone="amber">Jev unavailable</Badge>
+                      ) : (
+                        r.guess && (
+                          <>
+                            Possibly <span className="font-semibold text-zinc-900">{r.guess.guestName}</span>,{" "}
+                            {Math.round(r.guess.confidence * 100)}%
+                          </>
+                        )
+                      )}
+                    </p>
+                  )}
                   {r.companions.length > 0 && (
                     <ul aria-label="Companions" className="text-sm text-zinc-600">
                       {r.companions.map((c, i) => (
@@ -67,6 +81,39 @@ export default async function Requests() {
                   </dl>
                   <When createdAt={r.createdAt} now={now} />
                   <div className="grid gap-2 pt-1 sm:grid-cols-2">
+                    <ActionForm
+                      id={r.id}
+                      intent="existing"
+                      label="This is an existing Guest"
+                      variant="secondary"
+                      guestNames={{}}
+                      action={decideRequest}
+                      className="sm:col-span-2"
+                      confirm={{
+                        text: "Give this reply to the chosen guest?",
+                        detail: "Their answer, party size and companions become that guest's reply, and the request is removed. This cannot be undone.",
+                      }}
+                    >
+                      <label htmlFor={`eg-${r.id}`} className="mb-1.5 block text-sm font-semibold text-zinc-800">
+                        Which guest is this?
+                      </label>
+                      <select
+                        id={`eg-${r.id}`}
+                        name="guest_id"
+                        defaultValue={r.guess?.guestId && guests.some((g) => g.id === r.guess?.guestId) ? r.guess.guestId : ""}
+                        required
+                        className="block min-h-11 w-full min-w-0 rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-base text-zinc-900 shadow-sm sm:text-sm"
+                      >
+                        <option value="" disabled>
+                          Choose a guest…
+                        </option>
+                        {guests.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    </ActionForm>
                     <ActionForm
                       id={r.id}
                       intent="accept"

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { replyStore } from "@/lib/stores";
 
-/** Accept the Request (making the person a Guest in the chosen language) or decline it. */
+/** Accept the Request (making the person a Guest in the chosen language), give it to an existing Guest, or decline it. */
 export async function decideRequest(formData: FormData) {
   await requireAdminAction();
 
@@ -13,7 +13,10 @@ export async function decideRequest(formData: FormData) {
   const intent = formData.get("intent");
 
   if (intent === "accept") await replyStore.acceptRequest(id, formData.get("language") === "es" ? "es" : "en");
-  else if (intent === "decline") await replyStore.declineRequest(id);
+  else if (intent === "existing") {
+    const outcome = await replyStore.assignRequestToGuest(id, String(formData.get("guest_id") ?? ""));
+    if (outcome === "unknown_guest") throw new Error("Unknown guest");
+  } else if (intent === "decline") await replyStore.declineRequest(id);
   else throw new Error("Unknown action");
 
   revalidatePath("/admin/requests");

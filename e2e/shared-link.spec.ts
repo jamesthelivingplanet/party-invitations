@@ -40,13 +40,39 @@ test("an unsure Match is thanked generically and waits for review with a suggest
   await expect(card).toContainText("Says coming");
 });
 
+test("an unsure Match can leave optional contact details, which only the Host sees on the review item", async ({ page }) => {
+  await replyOnSharedLink(page, { name: "Maybe Michael", relation: "contact-case", coming: true, partySize: 2 });
+  await expect(page.getByText("We got your reply!")).toBeVisible();
+
+  await page.getByLabel(/How can we reach you if we need to check/).fill("WhatsApp 555-0177");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Thanks, we have it.")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Michael Johnson");
+
+  await loginAsHost(page);
+  await expect(page.locator("li", { hasText: "contact-case" })).toContainText("WhatsApp 555-0177");
+});
+
+test("the optional contact box does not block the reply", async ({ page }) => {
+  await replyOnSharedLink(page, { name: "Maybe Michael", relation: "no-contact-case", coming: false });
+  await expect(page.getByText("We got your reply!")).toBeVisible();
+  await expect(page.getByLabel(/How can we reach you if we need to check/)).toBeVisible();
+
+  await loginAsHost(page);
+  const card = page.locator("li", { hasText: "no-contact-case" });
+  await expect(card).toContainText("Possibly Michael Johnson");
+  await expect(card).not.toContainText("How to reach them");
+});
+
 test("someone nobody recognizes is asked for their details and becomes a Request, not counted", async ({ page }) => {
   await loginAsHost(page);
   const before = await dashboardNumbers(page);
 
   await replyOnSharedLink(page, { name: "Stranger", relation: "stranger-case", coming: true, partySize: 2 });
-  await expect(page.getByText("We'd love to have you at the party")).toBeVisible();
-  await expect(page.getByText("Leave your details here so we can get back to you.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "We'd love to have you at the party" })).toBeVisible();
+  await expect(
+    page.getByText("We couldn't find your name on our list, but we'd love to have you at the party! Leave your details here"),
+  ).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Emma");
 
   // No way to reach them: refused with a clear message.
@@ -78,7 +104,7 @@ test("the Request form needs a name, and shows in Spanish", async ({ page }) => 
   await page.getByRole("button", { name: "🛑 No puedo ir" }).click();
   await page.getByRole("button", { name: /enviar/i }).click();
 
-  await expect(page.getByText("Nos encantaría tenerte en la fiesta")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nos encantaría tenerte en la fiesta" })).toBeVisible();
   await page.fill("input[name=name]", "");
   await page.fill("input[name=email]", "extrano@example.com");
   await page.getByRole("button", { name: "Enviar mis datos" }).click();

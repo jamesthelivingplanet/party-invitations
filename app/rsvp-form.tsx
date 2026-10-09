@@ -13,6 +13,8 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
   // What the visitor already told us, kept for the Request if nobody matches.
   const [draft, setDraft] = useState<{ name: string; relation: string; partySize: number; companions: ReturnType<typeof readParty>["companions"] } | null>(null);
   const [message, setMessage] = useState("");
+  // Belongs to this visitor only: ties a follow-up call to this Reply (see /api/review-contact and /api/request).
+  const [token, setToken] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +34,9 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
       }),
     });
     if (res.ok) {
-      const result = (await res.json().catch(() => null))?.outcome;
+      const json = await res.json().catch(() => null);
+      const result = json?.outcome;
+      setToken(typeof json?.token === "string" ? json.token : "");
       setOutcome(result === "review" || result === "no_match" ? result : "confirmed");
       if (result === "no_match") setDraft({ name: String(form.get("name")), relation: String(form.get("relation")), ...party });
       setState("done");
@@ -54,7 +58,7 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
   }
 
   if (state === "done" && outcome === "no_match" && draft) {
-    return <RequestForm locale={locale} draft={draft} attending={attending} code={code} />;
+    return <RequestForm locale={locale} draft={draft} attending={attending} code={code} matchToken={token} />;
   }
 
   if (state === "done") {
@@ -68,6 +72,7 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
         <p className="mt-2 text-zinc-600">
           {!confirmed ? t.doneReview : attending ? t.doneYes : t.doneNo}
         </p>
+        {!confirmed && token && <ReviewContact locale={locale} token={token} />}
       </div>
     );
   }
@@ -125,6 +130,42 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
   );
 }
 
+/** Optional, after a reply goes to review: a way for the Host to reach the visitor. Does not block the reply. */
+function ReviewContact({ locale, token }: { locale: Locale; token: string }) {
+  const t = dictionaries[locale];
+  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const contact = String(new FormData(e.currentTarget).get("contact") ?? "").trim();
+    if (!contact) return;
+    setState("sending");
+    const res = await fetch("/api/review-contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, contact }),
+    });
+    setState(res.ok ? "done" : "error");
+  }
+
+  if (state === "done") return <p className="mt-6 text-sm font-semibold text-zinc-700">{t.reviewContactThanks}</p>;
+  return (
+    <form onSubmit={onSubmit} className="mt-6 space-y-2 text-left">
+      <label className="block text-sm font-bold">
+        {t.reviewContactLabel}
+        <input name="contact" maxLength={500} placeholder={t.reviewContactPh} className={fieldClass} />
+      </label>
+      {state === "error" && <p className="text-sm font-semibold text-red-700">{t.errGeneric}</p>}
+      <button
+        disabled={state === "sending"}
+        className="w-full rounded-lg border-2 border-zinc-300 px-4 py-2 font-bold text-zinc-900 disabled:opacity-50"
+      >
+        {state === "sending" ? t.sending : t.reviewContactSend}
+      </button>
+    </form>
+  );
+}
+
 const fieldClass =
   "mt-1 w-full rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-red-600";
 
@@ -134,8 +175,10 @@ function RequestForm({
   draft,
   attending,
   code,
+  matchToken,
 }: {
   code?: string;
+  matchToken: string;
   locale: Locale;
   draft: { name: string; relation: string; partySize: number; companions: ReturnType<typeof readParty>["companions"] };
   attending: boolean | null;
@@ -156,6 +199,7 @@ function RequestForm({
         name: field("name"),
         attending,
         code,
+        matchToken,
         partySize: draft.partySize,
         companions: draft.companions,
         ownWords: field("ownWords"),

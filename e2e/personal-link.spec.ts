@@ -173,7 +173,7 @@ test("Not [name]? with nobody matched leaves a Request marked as a forwarded Per
   await page.fill("input[name=relation]", "forward-es-case");
   await page.getByRole("button", { name: "🛑 No puedo ir" }).click();
   await page.getByRole("button", { name: /enviar/i }).click();
-  await expect(page.getByText("Nos encantaría tenerte en la fiesta")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nos encantaría tenerte en la fiesta" })).toBeVisible();
   await page.fill("input[name=email]", "d@example.com");
   await page.getByRole("button", { name: "Enviar mis datos" }).click();
   await expect(page.getByText("Tenemos tus datos y te contactaremos pronto.")).toBeVisible();

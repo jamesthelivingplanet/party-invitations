@@ -49,7 +49,7 @@ A person a Guest names in their Reply as coming with them, identified by name an
 _Avoid_: Plus-one, extra guest
 
 **Request**:
-A Reply from someone who is not on the Guest list, who leaves their name and ways to reach them so the Host can decide whether to invite them. The Host accepts a Request (the person becomes a Guest, in a language the Host picks, and the Reply that came with it is kept and counts) or declines it (it is removed, nothing is counted). In the review flow, "Accept request" does the same for a Reply the Host cannot place: it becomes a Guest and the Reply counts for them. Not counted until accepted.
+A Reply from someone who is not on the Guest list, who leaves their name and ways to reach them so the Host can decide whether to invite them. The Host accepts a Request (the person becomes a Guest, in a language the Host picks, and the Reply that came with it is kept and counts) or declines it (it is removed, nothing is counted). A Request also keeps Jev's weak guess at the closest Guest (or that Jev was unavailable), for the Host only; the Host can instead give the Request to an existing Guest, which assigns its Reply to them. In the review flow, "Accept request" does the same for a Reply the Host cannot place: it becomes a Guest and the Reply counts for them. Not counted until accepted.
 _Avoid_: Application, lead, walk-in
 
 **Reply deadline**:

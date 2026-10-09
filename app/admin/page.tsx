@@ -259,6 +259,13 @@ function ReviewCard({ r, now, guests }: { r: Reply; now: Date; guests: Guest[] }
         <blockquote className="mt-0.5 break-words text-zinc-800">&ldquo;{r.relation}&rdquo;</blockquote>
       </figure>
 
+      {r.reviewContact && (
+        <p className="mt-3 break-words text-sm text-zinc-800">
+          <span className="font-semibold text-zinc-600">How to reach them: </span>
+          {r.reviewContact}
+        </p>
+      )}
+
       {isGuess ? (
         <div className="mt-3 flex flex-col gap-2 rounded-xl bg-amber-50 p-3 ring-1 ring-inset ring-amber-200 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
