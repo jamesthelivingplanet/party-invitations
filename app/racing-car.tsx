@@ -41,6 +41,15 @@ export function CarDefs() {
         <stop offset="0.45" stopColor="#ffb000" />
         <stop offset="1" stopColor="#ff3d00" />
       </linearGradient>
+      {/* the red planet on the door: lit from the upper left */}
+      <radialGradient id="rcPlanet" cx="0.36" cy="0.32" r="0.78">
+        <stop offset="0" stopColor="#ffb07a" />
+        <stop offset="0.45" stopColor="#ec5e2a" />
+        <stop offset="1" stopColor="#9c2c12" />
+      </radialGradient>
+      <clipPath id="rcPlanetClip">
+        <circle cx="90" cy="55.8" r="7.4" />
+      </clipPath>
     </>
   );
 }
@@ -82,7 +91,7 @@ export function Wheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
-/** Body, canopy, chrome engine, flames and roundel; the wheels are drawn separately on top. */
+/** Body, canopy, chrome engine, flames and Planet door emblem; the wheels are drawn separately on top. */
 export function CarBody() {
   return (
     <g>
@@ -148,11 +157,30 @@ export function CarBody() {
         strokeLinejoin="round"
       />
 
-      {/* door roundel */}
-      <circle cx="90" cy="57" r="8" fill="#fff" stroke="#111" strokeWidth="1.4" />
-      <text x="90" y="61.3" textAnchor="middle" fontSize="12" fontWeight="900" fontStyle="italic" fill="#111" fontFamily="Arial, Helvetica, sans-serif">
-        J
-      </text>
+      {/* door emblem: the red planet (the birthday kid is Alex Planet) */}
+      <circle cx="90" cy="55.8" r="8.5" fill="#ffd9b8" opacity="0.5" />
+      <circle cx="90" cy="55.8" r="7.4" fill="url(#rcPlanet)" />
+      <g clipPath="url(#rcPlanetClip)">
+        {/* darker surface bands */}
+        <path d="M81 54.2 Q85 52 89 53.7 Q93 55.2 99 53 L99 56.6 Q94 58.8 89.6 57.3 Q85.4 55.9 81 57.8 Z" fill="#9a2d12" opacity="0.65" />
+        <path d="M82 60.2 Q87 58.8 91 60.4 Q95 61.8 98 60.2 L98 65 L82 65 Z" fill="#8a2410" opacity="0.5" />
+        {/* polar ice cap */}
+        <ellipse cx="89.2" cy="49.2" rx="3.6" ry="1.7" fill="#fff6ee" />
+        {/* craters: a light rim peeking out below a dark pit */}
+        {[
+          [93.6, 51.6, 1.1],
+          [86.4, 59.6, 1],
+          [94.4, 58.6, 0.75],
+        ].map(([x, y, r]) => (
+          <g key={x}>
+            <circle cx={x + 0.3} cy={y + 0.3} r={r} fill="#ffb98f" opacity="0.6" />
+            <circle cx={x} cy={y} r={r} fill="#8f2a10" />
+          </g>
+        ))}
+      </g>
+      {/* soft highlight and thin dark outline */}
+      <ellipse cx="86.8" cy="52.6" rx="2.4" ry="1.5" fill="#fff" opacity="0.45" transform="rotate(-30 86.8 52.6)" />
+      <circle cx="90" cy="55.8" r="7.4" fill="none" stroke="#3a0d05" strokeWidth="0.9" />
 
       {/* chrome headers dropping out of the body into a side pipe */}
       <g stroke="#3f454e" strokeWidth="0.8">
