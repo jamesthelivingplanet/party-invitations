@@ -1,40 +1,174 @@
 /**
- * Decorative hero: an original die-cast-style toy hot rod that races along an
- * orange stunt track, hits a kicker ramp, flies, lands in a shower of sparks
- * and blasts off the page. Pure inline SVG + CSS (see globals.css,
- * "Toy-car stunt hero"); everything is static for prefers-reduced-motion.
+ * Decorative hero: an original classic die-cast-style hot rod (late-60s custom look: Spectraflame blue,
+ * low raked body, big exposed rear wheel, small front wheel, redline tires, tinted bubble canopy, chrome
+ * engine stacks and side pipes, hot-rod flames) that races along an orange stunt track, hits a kicker
+ * ramp, flies, lands in a shower of sparks and blasts off the page. Pure inline SVG + CSS (see
+ * globals.css, "Toy-car stunt hero"); everything is static for prefers-reduced-motion.
+ *
+ * Geometry contract with globals.css: viewBox 0 0 210 90, tires touch y = 88, rear wheel at x = 44
+ * (the .rc-air pivot). The car-spinner reuses CarDefs, CarBody and Wheel.
  */
 
-const SPOKES = [0, 72, 144, 216, 288];
+const HOLES = [0, 72, 144, 216, 288];
 
-/** One chrome mag wheel with a red-stripe tire. */
+/**
+ * Gradients shared by the hero and the car spinner. Both SVGs render this same component, so any
+ * duplicate ids on a page are identical definitions.
+ */
+export function CarDefs() {
+  return (
+    <>
+      {/* Spectraflame blue: light #6ec1ff through #1e7bff to deep #06246b */}
+      <linearGradient id="rcPaint" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#6ec1ff" />
+        <stop offset="0.3" stopColor="#1e7bff" />
+        <stop offset="0.7" stopColor="#0a47c4" />
+        <stop offset="1" stopColor="#06246b" />
+      </linearGradient>
+      <linearGradient id="rcChrome" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#ffffff" />
+        <stop offset="0.45" stopColor="#c3c9d2" />
+        <stop offset="0.55" stopColor="#6f7782" />
+        <stop offset="1" stopColor="#eef1f5" />
+      </linearGradient>
+      <linearGradient id="rcGlass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#9fdcff" stopOpacity="0.75" />
+        <stop offset="0.45" stopColor="#2a6aa0" stopOpacity="0.62" />
+        <stop offset="1" stopColor="#0a1c33" stopOpacity="0.88" />
+      </linearGradient>
+      <linearGradient id="rcFlame" x1="1" y1="0" x2="0" y2="0">
+        <stop offset="0" stopColor="#fff36b" />
+        <stop offset="0.45" stopColor="#ffb000" />
+        <stop offset="1" stopColor="#ff3d00" />
+      </linearGradient>
+    </>
+  );
+}
+
+/** One redline wheel: narrow black tire, thin red stripe, big chrome five-hole mag hub. */
 export function Wheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const rim = r * 0.62;
+  const hub = r * 0.72;
   return (
     <g className="rc-wheel">
-      <circle cx={cx} cy={cy} r={r} fill="#141417" />
-      <circle cx={cx} cy={cy} r={r - 1.2} fill="none" stroke="#2c2c33" strokeWidth="1.4" strokeDasharray="2.2 2.2" />
-      <circle cx={cx} cy={cy} r={rim + 2.4} fill="none" stroke="#e8242c" strokeWidth="1.6" />
-      <circle cx={cx} cy={cy} r={rim} fill="url(#rcChrome)" stroke="#5b616b" strokeWidth="0.8" />
-      {SPOKES.map((a) => (
-        <path
+      <circle cx={cx} cy={cy} r={r} fill="#0f0f12" />
+      <circle cx={cx} cy={cy} r={r - 1.4} fill="none" stroke="#2a2a31" strokeWidth="1.2" strokeDasharray="2.4 2" />
+      {/* the red line on the sidewall */}
+      <circle cx={cx} cy={cy} r={hub + r * 0.09} fill="none" stroke="#ff2a2a" strokeWidth="1.4" />
+      <circle cx={cx} cy={cy} r={hub} fill="url(#rcChrome)" stroke="#4b525c" strokeWidth="0.9" />
+      <circle cx={cx} cy={cy} r={hub * 0.8} fill="none" stroke="#fff" strokeWidth="0.9" opacity="0.7" />
+      {HOLES.map((a) => (
+        <circle
           key={a}
-          d={`M${cx - rim * 0.18} ${cy} L${cx} ${cy - rim * 0.92} L${cx + rim * 0.18} ${cy} Z`}
-          fill="#7d838d"
+          cx={cx}
+          cy={cy - hub * 0.5}
+          r={hub * 0.2}
+          fill="#3d434c"
+          stroke="#9aa1ab"
+          strokeWidth="0.6"
           transform={`rotate(${a} ${cx} ${cy})`}
         />
       ))}
-      <circle cx={cx} cy={cy} r={rim * 0.32} fill="#e9edf2" stroke="#7d838d" strokeWidth="0.8" />
-      <circle cx={cx} cy={cy} r={rim * 0.12} fill="#e8242c" />
-      {/* specular glint on the rim (rotates with the wheel, reads as spin) */}
+      <circle cx={cx} cy={cy} r={hub * 0.26} fill="#eef1f5" stroke="#5b616b" strokeWidth="0.9" />
+      <circle cx={cx} cy={cy} r={hub * 0.1} fill="#5b616b" />
+      {/* specular glint on the hub (rotates with the wheel, reads as spin) */}
       <path
-        d={`M${cx - rim * 0.7} ${cy - rim * 0.45} A${rim * 0.85} ${rim * 0.85} 0 0 1 ${cx - rim * 0.1} ${cy - rim * 0.84}`}
+        d={`M${cx - hub * 0.78} ${cy - hub * 0.3} A${hub * 0.84} ${hub * 0.84} 0 0 1 ${cx - hub * 0.2} ${cy - hub * 0.8}`}
         stroke="#fff"
-        strokeWidth="1.4"
+        strokeWidth="1.6"
         strokeLinecap="round"
         fill="none"
-        opacity="0.9"
       />
+    </g>
+  );
+}
+
+/** Body, canopy, chrome engine, flames and roundel; the wheels are drawn separately on top. */
+export function CarBody() {
+  return (
+    <g>
+      {/* chassis pan */}
+      <path d="M12 69 L198 69 L194 73 L18 73 Z" fill="#141418" />
+
+      {/* chrome velocity stacks and blower poking up through the hood */}
+      <g stroke="#3f454e" strokeWidth="0.9">
+        <rect x="132" y="35" width="32" height="10" rx="2" fill="url(#rcChrome)" />
+        <rect x="135" y="28" width="26" height="8" rx="1.5" fill="url(#rcChrome)" />
+        <path d="M137 29.5 L137 34.5 M141.5 29.5 L141.5 34.5 M146 29.5 L146 34.5 M150.5 29.5 L150.5 34.5 M155 29.5 L155 34.5" stroke="#6f7782" />
+        {[137, 143.5, 150, 156.5].map((x) => (
+          <g key={x}>
+            <path d={`M${x} 28 L${x - 0.6} 18 L${x + 4.6} 18 L${x + 4} 28 Z`} fill="url(#rcChrome)" />
+            <ellipse cx={x + 2} cy={18} rx={2.9} ry={1.1} fill="#22252b" />
+          </g>
+        ))}
+      </g>
+
+      {/* main body: tail, flared rear fender, long hood raked down to the nose, wheel arches */}
+      <path
+        d="M6 63 L6 50 Q6 46.5 10 46.5 L21.6 46.5 A30 30 0 0 1 66.4 46.5 L126 44.5
+           Q170 44 194 51 Q205 54.5 205 60 L204.5 65 Q203.5 69 197 69 L179.8 69
+           A20 20 0 0 0 140.2 69 L68.8 69 A25 25 0 0 0 19.2 69 L11 69 Q6 69 6 63 Z"
+        fill="url(#rcPaint)"
+        stroke="#041a52"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+
+      {/* Spectraflame shine: crisp specular streak with a dark horizon reflection under it */}
+      <path d="M72 49 L126 47.6 Q166 47 190 53" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.95" />
+      <path d="M73 52.4 L126 51.2 Q164 50.8 186 56" stroke="#041a52" strokeWidth="1.3" strokeLinecap="round" fill="none" opacity="0.55" />
+      <path d="M22 44 A27 27 0 0 1 58 40" stroke="#e4f3ff" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.9" />
+      <path d="M9 50 L18 50" stroke="#e4f3ff" strokeWidth="1.4" strokeLinecap="round" opacity="0.8" />
+      {/* lower body reflection */}
+      <path d="M74 64 L138 64 M181 64 L201 63" stroke="#06246b" strokeWidth="1.4" fill="none" opacity="0.8" />
+
+      {/* driver seen through the tinted bubble canopy */}
+      <path d="M92 45 Q93 33 101 31 L108 31 Q112 33 112 45 Z" fill="#0b1426" opacity="0.8" />
+      <circle cx="103" cy="33" r="5.6" fill="#f4f6fa" stroke="#0d0d10" strokeWidth="1" />
+      <path d="M97.6 31.6 Q103 30.4 108.4 31.6" stroke="#ff2a2a" strokeWidth="1.6" fill="none" />
+      <path d="M103.6 32.8 L108.6 33.2 Q108.6 36 106.6 37 L103.6 36.6 Z" fill="#111" />
+      {/* bubble canopy */}
+      <path
+        d="M70 45.6 C72 31 86 22 101 21.5 C117 21 129 30 132 44.8 Z"
+        fill="url(#rcGlass)"
+        stroke="#0d0d10"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path d="M70 45.6 L132 45" stroke="#dfe4ea" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M77 39 C80 31 88 26 97 25.2" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" fill="none" opacity="0.85" />
+      <path d="M119 26 Q125 30 128 36" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" fill="none" opacity="0.6" />
+
+      {/* hot-rod flames licking back from the nose */}
+      <path
+        d="M203 59 Q190 52 172 53.5 Q164 51 152 52.5 L160 55.5 Q146 54.5 132 56 L143 58.5 Q126 58.5 114 61
+           L131 62.5 Q120 64.5 110 67 Q136 66.5 152 65 L147 67.5 Q172 67 190 65.5 Q201 64 203 59 Z"
+        fill="url(#rcFlame)"
+        stroke="#9a1a00"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+
+      {/* door roundel */}
+      <circle cx="90" cy="57" r="8" fill="#fff" stroke="#111" strokeWidth="1.4" />
+      <text x="90" y="61.3" textAnchor="middle" fontSize="12" fontWeight="900" fontStyle="italic" fill="#111" fontFamily="Arial, Helvetica, sans-serif">
+        J
+      </text>
+
+      {/* chrome headers dropping out of the body into a side pipe */}
+      <g stroke="#3f454e" strokeWidth="0.8">
+        <path d="M128 56 Q132 62 132 66 L128 66 Q128 62 124.5 57 Z" fill="url(#rcChrome)" />
+        <path d="M134 56 Q138 62 138 66 L134 66 Q134 62 130.5 57 Z" fill="url(#rcChrome)" />
+        <rect x="72" y="64.5" width="68" height="5" rx="2.5" fill="url(#rcChrome)" />
+      </g>
+      <path d="M80 64.5 L80 69.5 M86 64.5 L86 69.5 M92 64.5 L92 69.5" stroke="#8a919b" strokeWidth="0.9" />
+
+      {/* chrome rear bumper + twin exhaust tips under the tail */}
+      <rect x="3" y="54" width="5" height="9" rx="1.5" fill="url(#rcChrome)" stroke="#3f454e" strokeWidth="0.8" />
+      <rect x="4.5" y="47.5" width="3.5" height="5" rx="1" fill="#ff4d4d" stroke="#041a52" strokeWidth="0.7" />
+
+      {/* headlight and front bumper */}
+      <path d="M196 53 L203.5 56 L204 59.5 L196.5 58 Z" fill="#fffbe0" stroke="#111" strokeWidth="0.8" />
+      <rect x="196" y="64" width="9.5" height="3.6" rx="1.5" fill="url(#rcChrome)" stroke="#3f454e" strokeWidth="0.6" />
     </g>
   );
 }
@@ -103,28 +237,7 @@ export default function RacingCar() {
             <div className="rc-squash">
               <svg viewBox="0 0 210 90" className="rc-car">
                 <defs>
-                  <linearGradient id="rcPaint" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#6ec1ff" />
-                    <stop offset="0.35" stopColor="#1e7bff" />
-                    <stop offset="0.75" stopColor="#0a47c4" />
-                    <stop offset="1" stopColor="#06246b" />
-                  </linearGradient>
-                  <linearGradient id="rcChrome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#ffffff" />
-                    <stop offset="0.45" stopColor="#c3c9d2" />
-                    <stop offset="0.55" stopColor="#6f7782" />
-                    <stop offset="1" stopColor="#eef1f5" />
-                  </linearGradient>
-                  <linearGradient id="rcGlass" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stopColor="#7fd3ff" />
-                    <stop offset="0.5" stopColor="#1f5f8f" />
-                    <stop offset="1" stopColor="#0b2236" />
-                  </linearGradient>
-                  <linearGradient id="rcFlame" x1="1" y1="0" x2="0" y2="0">
-                    <stop offset="0" stopColor="#fff36b" />
-                    <stop offset="0.55" stopColor="#ffb000" />
-                    <stop offset="1" stopColor="#ff6a00" />
-                  </linearGradient>
+                  <CarDefs />
                   <linearGradient id="rcTrail" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0" stopColor="#38a3ff" stopOpacity="0" />
                     <stop offset="1" stopColor="#38a3ff" stopOpacity="0.55" />
@@ -147,77 +260,11 @@ export default function RacingCar() {
                   </g>
                 </g>
 
-                {/* exhaust fire */}
-                <path className="rc-fire" d="M10 54 L-26 49 L-14 55 L-34 58 L-12 61 L-24 67 L10 62 Z" fill="url(#rcFire)" />
+                {/* exhaust fire from the chrome tips at the tail (right edge = tip mouth, x 3) */}
+                <path className="rc-fire" d="M3 54.5 L-30 52 L-18 57 L-36 58.5 L-16 61 L-26 65.5 L3 62.5 Z" fill="url(#rcFire)" />
 
                 <g className="rc-body">
-
-                  {/* chassis / pan */}
-                  <path d="M14 70 L196 70 L192 74 L20 74 Z" fill="#1b1b20" />
-
-                  {/* main body shell with wheel arches */}
-                  <path
-                    d="M8 64 L6 46 Q7 39 16 38 L64 37 L80 20 Q83 17 88 17 L110 17 Q115 17 118 21 L130 37
-                       Q166 38 186 46 Q199 51 201 60 L201 66 Q200 70 194 70 L181 70
-                       A21 21 0 0 0 139 70 L71 70 A27 27 0 0 0 17 70 L12 70 Q8 70 8 64 Z"
-                    fill="url(#rcPaint)"
-                    stroke="#041a52"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                  />
-
-                  {/* glossy top highlight */}
-                  <path d="M14 40.5 L64 40 M131 39.5 Q168 41 190 50" stroke="#d4ecff" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.75" />
-                  <path d="M150 43 Q176 45 192 53" stroke="#fff" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.9" />
-                  {/* lower body shading line */}
-                  <path d="M10 60 L19 60 M70 58 L140 58 M181 59 L200 59" stroke="#06246b" strokeWidth="1.2" fill="none" opacity="0.7" />
-
-                  {/* cabin glass */}
-                  <path d="M68 37 L82 22 Q84 20 88 20 L109 20 Q112 20 114 23 L125 37 Z" fill="url(#rcGlass)" stroke="#0d0d10" strokeWidth="1.3" />
-                  <path d="M97 20 L95 37" stroke="#041a52" strokeWidth="3" />
-                  {/* driver helmet */}
-                  <circle cx="106" cy="29" r="6.2" fill="#ffd400" stroke="#0d0d10" strokeWidth="1" />
-                  <path d="M106.5 26 L112 26.8 Q112.5 30 110 31.5 L106.5 31 Z" fill="#111" />
-                  <path d="M101 27 Q102 24 105 23.5" stroke="#fff" strokeWidth="1.1" fill="none" strokeLinecap="round" />
-                  {/* glass glare */}
-                  <path d="M84 33 L92 23 L96 23 L88 33 Z" fill="#fff" opacity="0.35" />
-                  <path d="M116 33 L113 29 L115 28 L119 33 Z" fill="#fff" opacity="0.3" />
-
-                  {/* chrome supercharger poking through the hood */}
-                  <g>
-                    <rect x="137" y="26" width="24" height="13" rx="2" fill="url(#rcChrome)" stroke="#4b525c" strokeWidth="0.9" />
-                    <path d="M141 27.5 L141 37.5 M146 27.5 L146 37.5 M151 27.5 L151 37.5 M156 27.5 L156 37.5" stroke="#6f7782" strokeWidth="1" />
-                    <path d="M140 26 L141 18 L157 18 L159 26 Z" fill="#202027" stroke="#0d0d10" strokeWidth="0.9" />
-                    <rect x="139" y="16" width="20" height="3" rx="1.2" fill="url(#rcChrome)" stroke="#4b525c" strokeWidth="0.7" />
-                    <path d="M143 21 L155 21 M143 23.5 L155 23.5" stroke="#55555f" strokeWidth="1" />
-                  </g>
-
-                  {/* flame decal licking back from the nose */}
-                  <path
-                    d="M199 58 Q186 50 168 50 Q160 47 150 49 L158 53 Q146 51 132 53 L142 56 Q124 56 112 59
-                       L130 61 Q118 63 108 67 Q136 66 152 64 L146 67 Q170 66 186 64 Q196 63 199 58 Z"
-                    fill="url(#rcFlame)"
-                    stroke="#c2410c"
-                    strokeWidth="0.9"
-                    strokeLinejoin="round"
-                  />
-
-                  {/* door roundel */}
-                  <circle cx="96" cy="51" r="8.5" fill="#fff" stroke="#111" strokeWidth="1.4" />
-                  <text x="96" y="55.4" textAnchor="middle" fontSize="12.5" fontWeight="900" fontStyle="italic" fill="#111" fontFamily="Arial, Helvetica, sans-serif">
-                    J
-                  </text>
-                  {/* lightning bolt on rear quarter */}
-                  <path d="M54 44 L44 54 L50 54 L42 63 L57 51 L51 51 L58 44 Z" fill="#ffd400" stroke="#111" strokeWidth="0.9" strokeLinejoin="round" />
-
-                  {/* chrome side pipe */}
-                  <rect x="74" y="64" width="62" height="5" rx="2.5" fill="url(#rcChrome)" stroke="#4b525c" strokeWidth="0.7" />
-                  <path d="M80 64 L80 69 M88 64 L88 69 M96 64 L96 69" stroke="#9aa1ab" strokeWidth="0.8" />
-
-                  {/* headlight, grille, tail light */}
-                  <path d="M193 52 L200.5 55 L200.5 59 L193 57.5 Z" fill="#fffbe0" stroke="#111" strokeWidth="0.8" />
-                  <rect x="194" y="62" width="8" height="3.5" rx="1.2" fill="url(#rcChrome)" />
-                  <rect x="5.5" y="45" width="4" height="8" rx="1.2" fill="#ffd2c4" stroke="#041a52" strokeWidth="0.8" />
+                  <CarBody />
                 </g>
 
                 {/* big-rear / small-front stance */}
@@ -244,7 +291,6 @@ export default function RacingCar() {
               />
             ))}
           </div>
-
         </div>
       </div>
     </div>
