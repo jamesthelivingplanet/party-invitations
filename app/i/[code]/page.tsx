@@ -3,6 +3,7 @@ import { dictionaries, resolveLocale } from "@/lib/i18n";
 import { replyDeadlineDate } from "@/lib/event";
 import { formatDate, party } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
+import AddToCalendar from "../../add-to-calendar";
 import RacingCar from "../../racing-car";
 import LangSync from "../../lang-sync";
 import PersonalReplyForm, { ClosedReply } from "./personal-reply-form";
@@ -95,6 +96,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
           </div>
         ))}
       </dl>
+      <AddToCalendar event={event} locale={locale} />
 
       <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">{t.inRace}</h2>
       {open ? <PersonalReplyForm code={code} guestName={guest.name} locale={locale} current={current} /> : <ClosedReply locale={locale} current={current} />}
