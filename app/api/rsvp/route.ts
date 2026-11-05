@@ -1,7 +1,8 @@
 import { readCompanions } from "@/lib/companions-input";
 import { clampPartySize } from "@/lib/party";
 import { failureStatus } from "@/lib/reply-http";
-import { replyStore } from "@/lib/stores";
+import { buildIcs, googleCalendarUrl } from "@/lib/calendar";
+import { eventStore, replyStore } from "@/lib/stores";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -22,5 +23,16 @@ export async function POST(request: Request) {
   if (status) return Response.json({ error: outcome }, { status });
 
   // Never names a Guest: only how sure the Match was. The token belongs to this visitor alone (see SubmitResult).
-  return Response.json({ ok: true, attending, outcome, token });
+  // The place is only revealed to someone the Guest list recognised (a confident Match) who is coming.
+  let location = null;
+  if (outcome === "confirmed" && attending) {
+    const event = await eventStore.get();
+    location = {
+      place: event.place,
+      mapUrl: event.mapUrl,
+      googleUrl: googleCalendarUrl(event),
+      ics: buildIcs(event, new Date()),
+    };
+  }
+  return Response.json({ ok: true, attending, outcome, token, location });
 }

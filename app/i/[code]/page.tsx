@@ -96,7 +96,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
           </div>
         ))}
       </dl>
-      <AddToCalendar event={event} locale={locale} />
+      <AddToCalendar event={event} locale={locale} code={code} />
 
       <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">{t.inRace}</h2>
       {open ? <PersonalReplyForm code={code} guestName={guest.name} locale={locale} current={current} /> : <ClosedReply locale={locale} current={current} />}

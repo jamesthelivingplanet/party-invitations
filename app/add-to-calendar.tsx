@@ -6,7 +6,7 @@ const button =
   "rounded-full border border-yellow-400 px-4 py-2 text-sm font-bold text-yellow-400 hover:bg-yellow-400 hover:text-zinc-900";
 
 /** Two ways to save the party: a Google Calendar link and an .ics file (Apple, Outlook and others). */
-export default function AddToCalendar({ event, locale }: { event: EventSettings; locale: Locale }) {
+export default function AddToCalendar({ event, locale, code }: { event: EventSettings; locale: Locale; code?: string }) {
   const t = dictionaries[locale];
   return (
     <div className="mt-4 text-center">
@@ -15,7 +15,7 @@ export default function AddToCalendar({ event, locale }: { event: EventSettings;
         <a href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer" className={button}>
           Google
         </a>
-        <a href="/api/calendar" download="party-invitations.ics" className={button}>
+        <a href={code ? `/api/calendar?code=${encodeURIComponent(code)}` : "/api/calendar"} download="party-invitations.ics" className={button}>
           {t.calendarOther}
         </a>
       </div>

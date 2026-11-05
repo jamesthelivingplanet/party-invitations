@@ -92,3 +92,8 @@ export function buildIcs(event: EventSettings, now: Date, details?: string): str
   ];
   return lines.join("\r\n") + "\r\n";
 }
+
+/** The event as strangers may see it: no place, so no map link either. */
+export function withoutLocation(event: EventSettings): EventSettings {
+  return { ...event, place: null, mapUrl: null };
+}

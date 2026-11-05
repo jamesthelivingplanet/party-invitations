@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
+import { withoutLocation } from "@/lib/calendar";
 import { replyDeadlineDate } from "@/lib/event";
 import { formatDate, party } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
@@ -24,16 +25,7 @@ export default async function Home(props: PageProps<"/">) {
   const rows: [string, React.ReactNode][] = [
     [t.date, formatDate(event.date, locale)],
     [t.time, event.time ?? t.tbd],
-    [
-      t.where,
-      event.place && event.mapUrl ? (
-        <a href={event.mapUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-yellow-400 underline-offset-4 hover:text-yellow-400">
-          {event.place} 📍
-        </a>
-      ) : (
-        (event.place ?? t.tbd)
-      ),
-    ],
+    [t.where, t.whereHidden],
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
 
@@ -68,7 +60,7 @@ export default async function Home(props: PageProps<"/">) {
             </div>
           ))}
         </dl>
-        <AddToCalendar event={event} locale={locale} />
+        <AddToCalendar event={withoutLocation(event)} locale={locale} />
 
         <h2 className="mt-10 mb-4 text-2xl font-extrabold uppercase text-yellow-400">
           {t.inRace}

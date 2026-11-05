@@ -4,6 +4,47 @@ import { useState } from "react";
 import { CompanionFields, readParty } from "./companion-fields";
 import { dictionaries, type Locale } from "@/lib/i18n";
 
+type Location = { place: string | null; mapUrl: string | null; googleUrl: string; ics: string };
+
+/** Where the party is, plus calendar buttons: shown only after the Guest list recognised the replier. */
+function RevealedLocation({ locale, location }: { locale: Locale; location: Location }) {
+  const t = dictionaries[locale];
+  function saveIcs() {
+    const url = URL.createObjectURL(new Blob([location.ics], { type: "text/calendar" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "party-invitations.ics";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const button = "rounded-full border-2 border-zinc-900 px-4 py-2 text-sm font-bold hover:bg-zinc-900 hover:text-white";
+  return (
+    <div className="mt-5 border-t border-zinc-200 pt-4">
+      {location.place && (
+        <p className="font-bold">
+          {t.where}:{" "}
+          {location.mapUrl ? (
+            <a href={location.mapUrl} target="_blank" rel="noopener noreferrer" className="underline">
+              {location.place} 📍
+            </a>
+          ) : (
+            location.place
+          )}
+        </p>
+      )}
+      <p className="mt-3 text-sm font-bold">📅 {t.addToCalendar}</p>
+      <div className="mt-2 flex flex-wrap justify-center gap-2">
+        <a href={location.googleUrl} target="_blank" rel="noopener noreferrer" className={button}>
+          Google
+        </a>
+        <button type="button" onClick={saveIcs} className={button}>
+          {t.calendarOther}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The Shared link form. With a Personal link `code` it is the "Not [name]?" form: same Matching, same outcomes. */
 export default function RsvpForm({ locale, code }: { locale: Locale; code?: string }) {
   const t = dictionaries[locale];
@@ -13,6 +54,8 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
   // What the visitor already told us, kept for the Request if nobody matches.
   const [draft, setDraft] = useState<{ name: string; relation: string; partySize: number; companions: ReturnType<typeof readParty>["companions"] } | null>(null);
   const [message, setMessage] = useState("");
+  // The place, sent back only after a confident Match of someone who is coming (see /api/rsvp).
+  const [location, setLocation] = useState<Location | null>(null);
   // Belongs to this visitor only: ties a follow-up call to this Reply (see /api/review-contact and /api/request).
   const [token, setToken] = useState("");
 
@@ -37,6 +80,7 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
       const json = await res.json().catch(() => null);
       const result = json?.outcome;
       setToken(typeof json?.token === "string" ? json.token : "");
+      setLocation(json?.location && typeof json.location.ics === "string" ? json.location : null);
       setOutcome(result === "review" || result === "no_match" ? result : "confirmed");
       if (result === "no_match") setDraft({ name: String(form.get("name")), relation: String(form.get("relation")), ...party });
       setState("done");
@@ -72,6 +116,7 @@ export default function RsvpForm({ locale, code }: { locale: Locale; code?: stri
         <p className="mt-2 text-zinc-600">
           {!confirmed ? t.doneReview : attending ? t.doneYes : t.doneNo}
         </p>
+        {location && <RevealedLocation locale={locale} location={location} />}
         {!confirmed && token && <ReviewContact locale={locale} token={token} />}
       </div>
     );
