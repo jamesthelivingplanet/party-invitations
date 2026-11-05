@@ -89,24 +89,6 @@ export default async function Admin() {
                 </List>
               )}
             </Section>
-          </div>
-
-          <div className="min-w-0 space-y-10">
-            {/* Not replied */}
-            <Section title="Not replied yet" count={noReply.length}>
-              {noReply.length === 0 ? (
-                <Empty>Everyone on the guest list has replied.</Empty>
-              ) : (
-                <List>
-                  {noReply.map((g) => (
-                    <li key={g.id} className="px-4 py-3">
-                      <div className="font-semibold text-zinc-900">{g.name}</div>
-                      {g.notes && <div className="mt-0.5 text-sm text-zinc-600">{g.notes}</div>}
-                    </li>
-                  ))}
-                </List>
-              )}
-            </Section>
 
             {/* Declined */}
             <Section title="Declined" count={declined.length}>
@@ -126,6 +108,24 @@ export default async function Admin() {
                       now={now}
                       action={undo(e)}
                     />
+                  ))}
+                </List>
+              )}
+            </Section>
+          </div>
+
+          <div className="min-w-0 space-y-10">
+            {/* Not replied */}
+            <Section title="Not replied yet" count={noReply.length}>
+              {noReply.length === 0 ? (
+                <Empty>Everyone on the guest list has replied.</Empty>
+              ) : (
+                <List>
+                  {noReply.map((g) => (
+                    <li key={g.id} className="px-4 py-3">
+                      <div className="font-semibold text-zinc-900">{g.name}</div>
+                      {g.notes && <div className="mt-0.5 text-sm text-zinc-600">{g.notes}</div>}
+                    </li>
                   ))}
                 </List>
               )}
