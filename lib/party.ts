@@ -1,7 +1,7 @@
 export const party = {
   child: "Alex Morgan Smith",
   childFirst: "Alex",
-  theme: { en: "Cars", es: "Cars" },
+  theme: { en: "Racing Car", es: "Racing Car" },
 };
 
 export function formatDate(iso: string, locale: string) {

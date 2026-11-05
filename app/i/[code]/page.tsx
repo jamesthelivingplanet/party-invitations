@@ -65,10 +65,19 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
   const current = await replyStore.currentForPersonalLink(code);
   const deadline = replyDeadlineDate(event);
   const open = await replyStore.repliesOpen();
-  const rows: [string, string][] = [
+  const rows: [string, React.ReactNode][] = [
     [t.date, formatDate(event.date, locale)],
     [t.time, event.time ?? t.tbd],
-    [t.where, event.place ?? t.tbd],
+    [
+      t.where,
+      event.place && event.mapUrl ? (
+        <a href={event.mapUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-yellow-400 underline-offset-4 hover:text-yellow-400">
+          {event.place} 📍
+        </a>
+      ) : (
+        (event.place ?? t.tbd)
+      ),
+    ],
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
 

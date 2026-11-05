@@ -5,6 +5,8 @@ export type EventSettings = {
   date: string; // YYYY-MM-DD
   time: string | null;
   place: string | null;
+  /** Google Maps link for the place, shown as a link next to it. */
+  mapUrl: string | null;
   replyDeadlineDays: number | null;
   /** IANA time zone the event happens in; the Reply deadline closes at the end of its day here. */
   timeZone: string;
@@ -15,6 +17,7 @@ const defaults: EventSettings = {
   date: "2026-12-19",
   time: null,
   place: null,
+  mapUrl: null,
   replyDeadlineDays: null,
   timeZone: "America/New_York",
 };
@@ -54,6 +57,21 @@ function cleanName(name: string) {
   return trimmed.slice(0, 100);
 }
 
+function cleanMapUrl(url: string | null) {
+  const trimmed = url?.trim();
+  if (!trimmed) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new ValidationError("Map link must be a full web address starting with https://.");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new ValidationError("Map link must be a full web address starting with https://.");
+  }
+  return trimmed.slice(0, 500);
+}
+
 function cleanText(text: string | null) {
   const trimmed = text?.trim();
   return trimmed ? trimmed.slice(0, 200) : null;
@@ -69,15 +87,17 @@ export function createEventStore(db: Client) {
         date TEXT NOT NULL,
         time TEXT,
         place TEXT,
+        map_url TEXT,
         reply_deadline_days INTEGER,
         time_zone TEXT
       )
     `).then(async () => {
       // Databases created before the time zone setting get the column on first use.
       const { rows } = await db.execute("PRAGMA table_info(event_settings)");
-      if (!rows.some((r) => r.name === "time_zone")) {
+      for (const column of ["time_zone", "map_url"]) {
+        if (rows.some((r) => r.name === column)) continue;
         try {
-          await db.execute("ALTER TABLE event_settings ADD COLUMN time_zone TEXT");
+          await db.execute(`ALTER TABLE event_settings ADD COLUMN ${column} TEXT`);
         } catch (err) {
           // Another instance may have added it first.
           if (!String(err).includes("duplicate column")) throw err;
@@ -95,6 +115,7 @@ export function createEventStore(db: Client) {
       date: String(row.date),
       time: row.time === null ? null : String(row.time),
       place: row.place === null ? null : String(row.place),
+      mapUrl: row.map_url === null || row.map_url === undefined ? null : String(row.map_url),
       replyDeadlineDays: row.reply_deadline_days === null ? null : Number(row.reply_deadline_days),
       timeZone: row.time_zone === null || row.time_zone === undefined ? defaults.timeZone : String(row.time_zone),
     };
@@ -108,17 +129,18 @@ export function createEventStore(db: Client) {
       next.name = cleanName(next.name);
       next.time = cleanText(next.time);
       next.place = cleanText(next.place);
+      next.mapUrl = cleanMapUrl(next.mapUrl);
       next.date = cleanDate(next.date);
       next.replyDeadlineDays = cleanDeadlineDays(next.replyDeadlineDays);
       next.timeZone = cleanTimeZone(next.timeZone);
       await db.execute({
-        sql: `INSERT INTO event_settings (id, name, date, time, place, reply_deadline_days, time_zone)
-              VALUES (1, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO event_settings (id, name, date, time, place, map_url, reply_deadline_days, time_zone)
+              VALUES (1, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET name = excluded.name, date = excluded.date,
-                time = excluded.time, place = excluded.place,
+                time = excluded.time, place = excluded.place, map_url = excluded.map_url,
                 reply_deadline_days = excluded.reply_deadline_days,
                 time_zone = excluded.time_zone`,
-        args: [next.name, next.date, next.time, next.place, next.replyDeadlineDays, next.timeZone],
+        args: [next.name, next.date, next.time, next.place, next.mapUrl, next.replyDeadlineDays, next.timeZone],
       });
     },
   };

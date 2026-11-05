@@ -11,10 +11,10 @@ export default function CarSpinner({ label = "Loading", size = 96 }: { label?: s
       <svg viewBox="0 0 210 100" width={size} height={(size * 100) / 210} aria-hidden="true">
         <defs>
           <linearGradient id="rcPaint" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#ff6b4a" />
-            <stop offset="0.35" stopColor="#f0182b" />
-            <stop offset="0.75" stopColor="#a50d1e" />
-            <stop offset="1" stopColor="#5e0612" />
+            <stop offset="0" stopColor="#6ec1ff" />
+            <stop offset="0.35" stopColor="#1e7bff" />
+            <stop offset="0.75" stopColor="#0a47c4" />
+            <stop offset="1" stopColor="#06246b" />
           </linearGradient>
           <linearGradient id="rcChrome" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#ffffff" />
@@ -37,15 +37,13 @@ export default function CarSpinner({ label = "Loading", size = 96 }: { label?: s
           <line x1="-30" y1="94" x2="250" y2="94" />
         </g>
         <g className="car-spinner-body">
-          <path d="M16 38 L20 26 L25 26 L23 38 Z" fill="#26262c" />
-          <path d="M2 21 Q16 17 36 20 L36 26 Q16 24 4 27 Z" fill="url(#rcPaint)" stroke="#4a0610" strokeWidth="1" />
           <path d="M14 70 L196 70 L192 74 L20 74 Z" fill="#1b1b20" />
           <path
             d="M8 64 L6 46 Q7 39 16 38 L64 37 L80 20 Q83 17 88 17 L110 17 Q115 17 118 21 L130 37
                Q166 38 186 46 Q199 51 201 60 L201 66 Q200 70 194 70 L181 70
                A21 21 0 0 0 139 70 L71 70 A27 27 0 0 0 17 70 L12 70 Q8 70 8 64 Z"
             fill="url(#rcPaint)"
-            stroke="#4a0610"
+            stroke="#041a52"
             strokeWidth="1.4"
             strokeLinejoin="round"
           />

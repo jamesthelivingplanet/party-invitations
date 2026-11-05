@@ -10,6 +10,7 @@ test("a fresh event is Alex's party on 2026-12-19 with no time, place or deadlin
     date: "2026-12-19",
     time: null,
     place: null,
+    mapUrl: null,
     replyDeadlineDays: null,
     timeZone: "America/New_York",
   });
@@ -33,6 +34,7 @@ test("event settings that were saved are still there after a restart", async () 
     date: "2026-12-20",
     time: "2:00 PM - 5:00 PM",
     place: "123 Main St",
+    mapUrl: null,
     replyDeadlineDays: 7,
     timeZone: "America/Los_Angeles",
   });
@@ -84,6 +86,7 @@ const party = (date: string, replyDeadlineDays: number | null): EventSettings =>
   date,
   time: null,
   place: null,
+  mapUrl: null,
   replyDeadlineDays,
   timeZone: "America/New_York",
 });
@@ -113,4 +116,14 @@ test("every offered time zone is one the event store accepts, and a saved zone o
 
   expect(timeZoneOptions("America/Chicago")).toBe(TIME_ZONE_CHOICES);
   expect(timeZoneOptions("Asia/Tokyo")[0]).toEqual(["Asia/Tokyo", "Asia/Tokyo"]);
+});
+
+test("a map link must be a real web address and can be cleared", async () => {
+  const event = createEventStore(testDb());
+  await expect(event.update({ mapUrl: "not a link" })).rejects.toThrow(/map link/i);
+  await expect(event.update({ mapUrl: "javascript:alert(1)" })).rejects.toThrow(/map link/i);
+  await event.update({ mapUrl: " https://maps.app.goo.gl/abc " });
+  expect((await event.get()).mapUrl).toBe("https://maps.app.goo.gl/abc");
+  await event.update({ mapUrl: "" });
+  expect((await event.get()).mapUrl).toBeNull();
 });

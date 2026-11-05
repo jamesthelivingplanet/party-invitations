@@ -104,10 +104,10 @@ export default function RacingCar() {
               <svg viewBox="0 0 210 90" className="rc-car">
                 <defs>
                   <linearGradient id="rcPaint" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#ff6b4a" />
-                    <stop offset="0.35" stopColor="#f0182b" />
-                    <stop offset="0.75" stopColor="#a50d1e" />
-                    <stop offset="1" stopColor="#5e0612" />
+                    <stop offset="0" stopColor="#6ec1ff" />
+                    <stop offset="0.35" stopColor="#1e7bff" />
+                    <stop offset="0.75" stopColor="#0a47c4" />
+                    <stop offset="1" stopColor="#06246b" />
                   </linearGradient>
                   <linearGradient id="rcChrome" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0" stopColor="#ffffff" />
@@ -126,8 +126,8 @@ export default function RacingCar() {
                     <stop offset="1" stopColor="#ff6a00" />
                   </linearGradient>
                   <linearGradient id="rcTrail" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="#ff3b30" stopOpacity="0" />
-                    <stop offset="1" stopColor="#ff3b30" stopOpacity="0.55" />
+                    <stop offset="0" stopColor="#38a3ff" stopOpacity="0" />
+                    <stop offset="1" stopColor="#38a3ff" stopOpacity="0.55" />
                   </linearGradient>
                   <linearGradient id="rcFire" x1="1" y1="0" x2="0" y2="0">
                     <stop offset="0" stopColor="#fffbd1" />
@@ -151,10 +151,6 @@ export default function RacingCar() {
                 <path className="rc-fire" d="M10 54 L-26 49 L-14 55 L-34 58 L-12 61 L-24 67 L10 62 Z" fill="url(#rcFire)" />
 
                 <g className="rc-body">
-                  {/* rear wing */}
-                  <path d="M16 38 L20 26 L25 26 L23 38 Z" fill="#26262c" />
-                  <path d="M2 21 Q16 17 36 20 L36 26 Q16 24 4 27 Z" fill="url(#rcPaint)" stroke="#4a0610" strokeWidth="1" />
-                  <path d="M5 21.5 Q18 18.5 34 21" stroke="#ffd2c4" strokeWidth="1.2" fill="none" opacity="0.8" />
 
                   {/* chassis / pan */}
                   <path d="M14 70 L196 70 L192 74 L20 74 Z" fill="#1b1b20" />
@@ -165,20 +161,20 @@ export default function RacingCar() {
                        Q166 38 186 46 Q199 51 201 60 L201 66 Q200 70 194 70 L181 70
                        A21 21 0 0 0 139 70 L71 70 A27 27 0 0 0 17 70 L12 70 Q8 70 8 64 Z"
                     fill="url(#rcPaint)"
-                    stroke="#4a0610"
+                    stroke="#041a52"
                     strokeWidth="1.4"
                     strokeLinejoin="round"
                   />
 
                   {/* glossy top highlight */}
-                  <path d="M14 40.5 L64 40 M131 39.5 Q168 41 190 50" stroke="#ffd9cf" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.75" />
+                  <path d="M14 40.5 L64 40 M131 39.5 Q168 41 190 50" stroke="#d4ecff" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.75" />
                   <path d="M150 43 Q176 45 192 53" stroke="#fff" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.9" />
                   {/* lower body shading line */}
-                  <path d="M10 60 L19 60 M70 58 L140 58 M181 59 L200 59" stroke="#5e0612" strokeWidth="1.2" fill="none" opacity="0.7" />
+                  <path d="M10 60 L19 60 M70 58 L140 58 M181 59 L200 59" stroke="#06246b" strokeWidth="1.2" fill="none" opacity="0.7" />
 
                   {/* cabin glass */}
                   <path d="M68 37 L82 22 Q84 20 88 20 L109 20 Q112 20 114 23 L125 37 Z" fill="url(#rcGlass)" stroke="#0d0d10" strokeWidth="1.3" />
-                  <path d="M97 20 L95 37" stroke="#4a0610" strokeWidth="3" />
+                  <path d="M97 20 L95 37" stroke="#041a52" strokeWidth="3" />
                   {/* driver helmet */}
                   <circle cx="106" cy="29" r="6.2" fill="#ffd400" stroke="#0d0d10" strokeWidth="1" />
                   <path d="M106.5 26 L112 26.8 Q112.5 30 110 31.5 L106.5 31 Z" fill="#111" />
@@ -221,7 +217,7 @@ export default function RacingCar() {
                   {/* headlight, grille, tail light */}
                   <path d="M193 52 L200.5 55 L200.5 59 L193 57.5 Z" fill="#fffbe0" stroke="#111" strokeWidth="0.8" />
                   <rect x="194" y="62" width="8" height="3.5" rx="1.2" fill="url(#rcChrome)" />
-                  <rect x="5.5" y="45" width="4" height="8" rx="1.2" fill="#ffb4a8" stroke="#4a0610" strokeWidth="0.8" />
+                  <rect x="5.5" y="45" width="4" height="8" rx="1.2" fill="#ffd2c4" stroke="#041a52" strokeWidth="0.8" />
                 </g>
 
                 {/* big-rear / small-front stance */}

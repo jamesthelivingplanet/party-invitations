@@ -59,6 +59,11 @@ export default async function Settings(props: PageProps<"/admin/settings">) {
             <input id="place" name="place" defaultValue={event.place ?? ""} maxLength={200} className={field} placeholder="e.g. 123 Main St, Springfield" />
           </div>
           <div className="sm:col-span-2">
+            <label htmlFor="mapUrl" className={label}>Google Maps link</label>
+            <input id="mapUrl" name="mapUrl" type="url" defaultValue={event.mapUrl ?? ""} maxLength={500} className={field} placeholder="https://maps.app.goo.gl/..." />
+            <p className={hint}>Optional. Guests see the Place as a link that opens this map.</p>
+          </div>
+          <div className="sm:col-span-2">
             <label htmlFor="days" className={label}>Reply deadline</label>
             <div className="flex items-center gap-3">
               <input
