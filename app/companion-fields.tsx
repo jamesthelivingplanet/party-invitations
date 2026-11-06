@@ -14,10 +14,13 @@ export function CompanionFields({
   locale,
   initialPartySize = 1,
   initialCompanions = [],
+  label,
 }: {
   locale: Locale;
   initialPartySize?: number;
   initialCompanions?: Companion[];
+  /** Replaces the usual "How many people are coming (including you)?". */
+  label?: string;
 }) {
   const t = dictionaries[locale];
   // What the box shows (may be empty or out of range while typing) and the Party size the Companion rows follow.
@@ -27,7 +30,7 @@ export function CompanionFields({
   return (
     <>
       <label className="block font-bold">
-        {t.howMany}
+        {label ?? t.howMany}
         <input
           name="partySize"
           type="number"

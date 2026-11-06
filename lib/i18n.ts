@@ -88,6 +88,22 @@ const en = {
   companionsLabel: "Coming with you",
   language: "Idioma",
   switchTo: "Español",
+  yesShort: "Yes",
+  noShort: "No",
+  comingWith: (first: string) => `Are you coming with ${first}?`,
+  andYourChildren: "And your children?",
+  howManyChildren: "How many children are coming?",
+  childrenOptional: "Names are optional. Fill them in if you like.",
+  childN: (n: number) => `Child ${n}`,
+  childName: (n: number) => `Name of child ${n} (optional)`,
+  childKind: (n: number) => `Adult or child: child ${n} (optional)`,
+  adultOrChildOptional: "Adult or child? (optional)",
+  /** The Party size question when the partner and children are asked about separately. */
+  howManyBesides: (partner: string | null, children: boolean) =>
+    `How many people are coming (including you)? Don't count ${[partner, children ? "your children" : null].filter(Boolean).join(" or ")} here.`,
+  answeredBy: (name: string) => `${name} replied for you.`,
+  childrenLabel: "Children",
+  errChildrenCount: "Please say how many children are coming (up to 10).",
 };
 
 const es: typeof en = {
@@ -174,6 +190,22 @@ const es: typeof en = {
   companionsLabel: "Vienen contigo",
   language: "Language",
   switchTo: "English",
+  // TODO(native review): Spanish for the partner and children questions.
+  yesShort: "Sí",
+  noShort: "No",
+  comingWith: (first) => `¿Vienes con ${first}?`,
+  andYourChildren: "¿Y tus hijos?",
+  howManyChildren: "¿Cuántos de tus hijos vienen?",
+  childrenOptional: "Los nombres son opcionales. Llénalos si quieres.",
+  childN: (n) => `Hijo/a ${n}`,
+  childName: (n) => `Nombre del hijo/a ${n} (opcional)`,
+  childKind: (n) => `Adulto o niño: hijo/a ${n} (opcional)`,
+  adultOrChildOptional: "¿Adulto o niño? (opcional)",
+  howManyBesides: (partner, children) =>
+    `¿Cuántas personas vienen (contándote a ti)? No cuentes a ${[partner, children ? "tus hijos" : null].filter(Boolean).join(" ni a ")} aquí.`,
+  answeredBy: (name) => `${name} respondió por ti.`,
+  childrenLabel: "Hijos",
+  errChildrenCount: "Por favor indica cuántos de tus hijos vienen (hasta 10).",
 };
 
 export const dictionaries = { en, es };

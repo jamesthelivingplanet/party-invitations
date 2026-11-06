@@ -415,7 +415,7 @@ test("reopening a Personal link shows the Guest's current Reply, or nothing befo
 
   expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toBeNull();
   await replies.submitPersonal(sarah.personalLinkCode, { attending: true, ...party(3) });
-  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: true, partySize: 3, companions: [adult("Guest 2"), adult("Guest 3")] });
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toMatchObject({ attending: true, partySize: 3, companions: [adult("Guest 2"), adult("Guest 3")] });
   expect(await replies.currentForPersonalLink("nope")).toBeNull();
 });
 
@@ -426,7 +426,7 @@ test("changing a Reply replaces the earlier one: counted once, latest answer", a
   await replies.submitPersonal(sarah.personalLinkCode, { attending: true, ...party(4) });
   await replies.submitPersonal(sarah.personalLinkCode, { attending: true, ...party(2) });
 
-  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: true, ...party(2) });
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toMatchObject({ attending: true, ...party(2) });
   const summary = await replies.summary();
   expect(summary.coming.map((e) => e.name)).toEqual(["Sarah Johnson"]);
   expect(summary.headcount).toBe(2);
@@ -439,7 +439,7 @@ test("changing from coming to not coming removes the Guest from the headcount", 
   await replies.submitPersonal(sarah.personalLinkCode, { attending: true, ...party(3) });
   await replies.submitPersonal(sarah.personalLinkCode, { attending: false, ...party(3) });
 
-  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toEqual({ attending: false, partySize: 1, companions: [] });
+  expect(await replies.currentForPersonalLink(sarah.personalLinkCode)).toMatchObject({ attending: false, partySize: 1, companions: [] });
   const summary = await replies.summary();
   expect(summary.headcount).toBe(0);
   expect(summary.coming).toEqual([]);
@@ -476,7 +476,7 @@ test("a Personal link Reply is refused from the first moment after the deadline 
   expect(await replies.submitPersonal(guest.personalLinkCode, { attending: false, partySize: 1 })).toBe("closed");
 
   expect(await replies.repliesOpen()).toBe(false);
-  expect(await replies.currentForPersonalLink(guest.personalLinkCode)).toEqual({ attending: true, partySize: 2, companions: [tom] });
+  expect(await replies.currentForPersonalLink(guest.personalLinkCode)).toMatchObject({ attending: true, partySize: 2, companions: [tom] });
 });
 
 test("a Shared link Reply is accepted on the last moment and refused after the deadline", async () => {
@@ -519,7 +519,7 @@ test("a Party size above one takes exactly Party size minus one named Companions
   const companions = [adult("Tom"), child("Mia")];
   expect(await replies.submitPersonal(code, { attending: true, partySize: 3, companions })).toBe("recorded");
 
-  expect(await replies.currentForPersonalLink(code)).toEqual({ attending: true, partySize: 3, companions });
+  expect(await replies.currentForPersonalLink(code)).toMatchObject({ attending: true, partySize: 3, companions });
   const summary = await replies.summary();
   expect(summary.coming[0].reply.companions).toEqual(companions);
   expect(summary.headcount).toBe(3);
@@ -558,7 +558,7 @@ test("a Reply that says not coming takes no Companions", async () => {
 
   expect(await replies.submitPersonal(code, { attending: false, partySize: 1, companions: [adult("Tom")] })).toBe("recorded");
 
-  expect(await replies.currentForPersonalLink(code)).toEqual({ attending: false, partySize: 1, companions: [] });
+  expect(await replies.currentForPersonalLink(code)).toMatchObject({ attending: false, partySize: 1, companions: [] });
 });
 
 test("changing a Reply replaces the Companions too", async () => {
@@ -569,7 +569,7 @@ test("changing a Reply replaces the Companions too", async () => {
   await replies.submitPersonal(code, { attending: true, partySize: 3, companions: [adult("Tom"), child("Mia")] });
   await replies.submitPersonal(code, { attending: true, partySize: 2, companions: [child("Mia")] });
 
-  expect(await replies.currentForPersonalLink(code)).toEqual({ attending: true, partySize: 2, companions: [child("Mia")] });
+  expect(await replies.currentForPersonalLink(code)).toMatchObject({ attending: true, partySize: 2, companions: [child("Mia")] });
   const summary = await replies.summary();
   expect(summary.adults).toBe(1);
   expect(summary.children).toBe(1);
@@ -830,7 +830,7 @@ test("Not [name]?: matching another guest records their reply and leaves the lin
   const { outcome } = await store.submitFromPersonalLink(owner.personalLinkCode, notMe("Emma", { attending: false }));
 
   expect(outcome).toBe("confirmed");
-  expect(await store.currentForPersonalLink(owner.personalLinkCode)).toEqual({
+  expect(await store.currentForPersonalLink(owner.personalLinkCode)).toMatchObject({
     attending: true,
     partySize: 2,
     companions: [{ name: "Guest 2", kind: "adult" }],
@@ -904,4 +904,195 @@ test("an existing database from before the weak-guess columns is upgraded in pla
   const replies = createReplyStore(db, { guests: createGuestStore(db), jev: scriptedJev({}) });
 
   expect((await replies.listRequests())[0]).toMatchObject({ name: "Old", guess: null, jevUnavailable: false });
+});
+
+// Households: two linked partners, each a Guest with their own Personal link.
+async function household(opts: { hasChildren?: boolean } = {}) {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const replies = createReplyStore(db, { guests, jev: scriptedJev({}) });
+  const ana = await guests.add({ name: "Ana Pérez", language: "es", notes: "", hasChildren: opts.hasChildren });
+  const ben = await guests.add({ name: "Ben Pérez", language: "en", notes: "" });
+  await guests.setPartner(ana.id, ben.id);
+  return { db, guests, replies, ana, ben };
+}
+
+test("a Guest coming with their partner records a coming Reply for the partner, answered by the Guest", async () => {
+  const { replies, ana, ben } = await household();
+
+  expect(await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true })).toBe("recorded");
+
+  const summary = await replies.summary();
+  const byName = Object.fromEntries(summary.coming.map((e) => [e.name, e]));
+  expect(byName["Ana Pérez"]).toMatchObject({ answeredBy: null, partySize: 1 });
+  expect(byName["Ben Pérez"]).toMatchObject({ answeredBy: "Ana Pérez", partySize: 1 });
+  expect(summary.headcount).toBe(2);
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ attending: true, partySize: 1, answeredBy: "Ana Pérez" });
+});
+
+test("saying No, or Yes without the partner, records nothing for the partner", async () => {
+  const { replies, ana, ben } = await household();
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: false, partySize: 1, withPartner: true });
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: false });
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+
+  expect((await replies.summary()).headcount).toBe(1);
+});
+
+test("an archived partner is never recorded, and a Guest with no partner is unaffected", async () => {
+  const { guests, replies, ana, ben } = await household();
+  const solo = await guests.add({ name: "Solo", language: "en", notes: "" });
+  await guests.archive(ben.id);
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await replies.submitPersonal(solo.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await guests.restore(ben.id);
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+  expect((await replies.summary()).headcount).toBe(2);
+});
+
+test("answering for a partner who already said they are coming keeps the partner's own Reply", async () => {
+  const { replies, ana, ben } = await household();
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 2, companions: [adult("Gran")] });
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ partySize: 2, companions: [adult("Gran")], answeredBy: null });
+  expect((await replies.summary()).headcount).toBe(3);
+});
+
+test("a partner can change the Reply given for them; the latest Reply counts, as their own", async () => {
+  const { replies, ana, ben } = await household();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+  await replies.submitPersonal(ben.personalLinkCode, { attending: false, partySize: 1 });
+
+  const summary = await replies.summary();
+  expect(summary.declined).toMatchObject([{ name: "Ben Pérez", answeredBy: null }]);
+  expect(summary.headcount).toBe(1);
+});
+
+test("answering for a partner follows the Reply deadline: nothing is recorded for either after it", async () => {
+  const { replies, guest, guests } = await withDeadline(7, FIRST_AFTER);
+  const partner = await guests.add({ name: "Tom Partner", language: "en", notes: "" });
+  await guests.setPartner(guest.id, partner.id);
+
+  expect(await replies.submitPersonal(guest.personalLinkCode, { attending: true, partySize: 1, withPartner: true })).toBe("closed");
+  expect((await replies.summary()).totalReplies).toBe(0);
+});
+
+const kid = (name = "", kind: "adult" | "child" | null = null) => ({ name, kind });
+
+test("a Guest with children says how many are coming; names and labels are optional", async () => {
+  const { replies, ana } = await household({ hasChildren: true });
+
+  const outcome = await replies.submitPersonal(ana.personalLinkCode, {
+    attending: true,
+    partySize: 1,
+    children: [kid(), kid("  Lola  "), kid("Max", "adult")],
+  });
+
+  expect(outcome).toBe("recorded");
+  const summary = await replies.summary();
+  expect(summary.coming[0]).toMatchObject({ name: "Ana Pérez", partySize: 4, children: [kid(), kid("Lola"), kid("Max", "adult")] });
+  expect(summary.headcount).toBe(4);
+  expect(summary.children).toBe(2); // an unlabelled child counts as a child
+  expect(summary.adults).toBe(2);
+});
+
+test("a household's children are counted once: the newest coming Reply that answered about them wins", async () => {
+  const { replies, ana, ben } = await household({ hasChildren: true });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid("Lola"), kid()] });
+  expect((await replies.summary()).headcount).toBe(4); // Ana, Ben (answered by Ana), two children
+
+  // Ben replies himself and mentions the children too: still two children, now counted on Ben's Reply.
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1, children: [kid("Lola"), kid("Tito")] });
+  let summary = await replies.summary();
+  expect(summary.headcount).toBe(4);
+  expect(summary.children).toBe(2);
+  const byName = () => Object.fromEntries(summary.coming.map((e) => [e.name, e]));
+  expect(byName()["Ben Pérez"]).toMatchObject({ partySize: 3, children: [kid("Lola"), kid("Tito")] });
+  expect(byName()["Ana Pérez"]).toMatchObject({ partySize: 1, children: null });
+
+  // Ana changes her Reply and says the children are not coming after all: none are counted.
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [] });
+  summary = await replies.summary();
+  expect(summary.headcount).toBe(2);
+  expect(summary.children).toBe(0);
+  expect(summary.coming.map((e) => e.partySize)).toEqual([1, 1]); // the Party sizes shown add up to the headcount
+});
+
+test("children stated by a parent who then says No stop counting; a Reply that did not answer about them changes nothing", async () => {
+  const { replies, ana, ben } = await household({ hasChildren: true });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid(), kid(), kid()] });
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1 }); // did not answer about the children
+  expect((await replies.summary()).headcount).toBe(5);
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: false, partySize: 1 });
+
+  const summary = await replies.summary();
+  expect(summary.headcount).toBe(1);
+  expect(summary.children).toBe(0);
+});
+
+test("children are taken when the Guest or their partner is marked as having them, and ignored otherwise", async () => {
+  const { guests, replies, ben } = await household({ hasChildren: true }); // only Ana is marked
+  const solo = await guests.add({ name: "Solo", language: "en", notes: "" });
+
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1, children: [kid()] });
+  await replies.submitPersonal(solo.personalLinkCode, { attending: true, partySize: 1, children: [kid(), kid()] });
+
+  const summary = await replies.summary();
+  expect(summary.headcount).toBe(3);
+  expect(summary.children).toBe(1);
+});
+
+test("more children than the largest Party size is refused and nothing is recorded", async () => {
+  const { replies, ana } = await household({ hasChildren: true });
+
+  expect(await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, children: Array.from({ length: 11 }, () => kid()) })).toBe("children_count");
+  expect((await replies.summary()).totalReplies).toBe(0);
+});
+
+test("a Personal link tells the page about the household: the active partner, whether they are coming, and the children counted", async () => {
+  const { guests, replies, ana, ben } = await household({ hasChildren: true });
+  const solo = await guests.add({ name: "Solo", language: "en", notes: "" });
+
+  expect(await replies.householdForPersonalLink(ben.personalLinkCode)).toEqual({ partnerName: "Ana Pérez", partnerComing: false, hasChildren: true, children: null });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid("Lola")] });
+  expect(await replies.householdForPersonalLink(ben.personalLinkCode)).toEqual({ partnerName: "Ana Pérez", partnerComing: true, hasChildren: true, children: [kid("Lola")] });
+
+  expect(await replies.householdForPersonalLink(solo.personalLinkCode)).toEqual({ partnerName: null, partnerComing: false, hasChildren: false, children: null });
+  await guests.archive(ana.id);
+  expect(await replies.householdForPersonalLink(ben.personalLinkCode)).toEqual({ partnerName: null, partnerComing: false, hasChildren: false, children: null });
+  expect(await replies.householdForPersonalLink("nope")).toBeNull();
+});
+
+test("Replies saved before households existed keep their meaning, and new household Replies work on the upgraded table", async () => {
+  const db = testDb();
+  const guests = createGuestStore(db);
+  const ana = await guests.add({ name: "Ana Pérez", language: "es", notes: "", hasChildren: true });
+  const ben = await guests.add({ name: "Ben Pérez", language: "en", notes: "" });
+  await db.execute(`CREATE TABLE rsvps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      name TEXT NOT NULL, relation TEXT NOT NULL, attending INTEGER NOT NULL, party_size INTEGER NOT NULL,
+      matched_guest_id TEXT, confidence REAL, status TEXT NOT NULL, contact_token TEXT, review_contact TEXT,
+      decision TEXT, assigned_guest_id TEXT, new_guest_name TEXT, companions TEXT)`);
+  await db.execute({
+    sql: `INSERT INTO rsvps (name, relation, attending, party_size, matched_guest_id, confidence, status, companions)
+          VALUES ('Ben', 'Personal link', 1, 2, ?, 1, 'matched', '[{"name":"Mia","kind":"child"}]')`,
+    args: [ben.id],
+  });
+  const replies = createReplyStore(db, { guests, jev: scriptedJev({}) });
+
+  expect((await replies.summary()).coming).toMatchObject([{ name: "Ben Pérez", partySize: 2, answeredBy: null, children: null }]);
+
+  await guests.setPartner(ana.id, ben.id);
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid()] });
+  const summary = await replies.summary();
+  expect(summary.headcount).toBe(4); // Ana, her child, Ben and his Companion Mia (Ben's own Reply kept)
+  expect(summary.children).toBe(2);
 });

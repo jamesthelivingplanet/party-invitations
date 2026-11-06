@@ -10,9 +10,13 @@ export type Guest = {
   archived: boolean;
   /** The unguessable code carried in the Guest's Personal link. */
   personalLinkCode: string;
+  /** The other Guest in this Guest's household of two, or null. Linking is mutual. */
+  partnerId: string | null;
+  /** The Host marked this Guest as having children, so the Invitation page asks about them. */
+  hasChildren: boolean;
 };
 
-export type GuestInput = { name: string; language: Language; notes: string };
+export type GuestInput = { name: string; language: Language; notes: string; hasChildren?: boolean };
 
 export class ValidationError extends Error {}
 
@@ -39,6 +43,12 @@ function newPersonalLinkCode() {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
 }
 
+const LATER_COLUMNS: [string, string][] = [
+  ["personal_link_code", "TEXT"],
+  ["partner_id", "TEXT"], // the other Guest in a household of two; kept on both sides
+  ["has_children", "INTEGER"], // 1 when the Host marked the Guest as having children; NULL or 0 otherwise
+];
+
 export type SeedGuest = { id: string; name: string; notes: string; language?: Language };
 
 export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) {
@@ -59,10 +69,12 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
       `);
+      // Columns added after the first release; NULL on Guests from before them.
       const columns = await db.execute("PRAGMA table_info(guests)");
-      if (!columns.rows.some((r) => r.name === "personal_link_code")) {
+      for (const [col, type] of LATER_COLUMNS) {
+        if (columns.rows.some((r) => r.name === col)) continue;
         try {
-          await db.execute("ALTER TABLE guests ADD COLUMN personal_link_code TEXT");
+          await db.execute(`ALTER TABLE guests ADD COLUMN ${col} ${type}`);
         } catch (err) {
           // Another instance may have added it first.
           if (!String(err).includes("duplicate column")) throw err;
@@ -96,6 +108,8 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
     notes: String(row.notes),
     archived: Number(row.archived) === 1,
     personalLinkCode: String(row.personal_link_code),
+    partnerId: row.partner_id == null ? null : String(row.partner_id),
+    hasChildren: Number(row.has_children) === 1,
   });
 
   return {
@@ -107,13 +121,14 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
         language: cleanLanguage(input.language),
         notes: cleanNotes(input.notes),
       };
+      const hasChildren = input.hasChildren === true;
       const id = `gst_${crypto.randomUUID()}`;
       const personalLinkCode = newPersonalLinkCode();
       await db.execute({
-        sql: "INSERT INTO guests (id, name, language, notes, personal_link_code) VALUES (?, ?, ?, ?, ?)",
-        args: [id, input.name, input.language, input.notes, personalLinkCode],
+        sql: "INSERT INTO guests (id, name, language, notes, personal_link_code, has_children) VALUES (?, ?, ?, ?, ?, ?)",
+        args: [id, input.name, input.language, input.notes, personalLinkCode, hasChildren ? 1 : 0],
       });
-      return { id, ...input, archived: false, personalLinkCode };
+      return { id, name: input.name, language: input.language, notes: input.notes, archived: false, personalLinkCode, partnerId: null, hasChildren };
     },
 
     async list(opts: { includeArchived?: boolean } = {}): Promise<Guest[]> {
@@ -125,15 +140,17 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
 
     async update(id: string, changes: Partial<GuestInput>): Promise<void> {
       await ensure();
-      const clean: Partial<GuestInput> = {};
+      // Column name to cleaned value; only these columns can ever be changed here.
+      const clean: Record<string, string | number> = {};
       if (changes.name !== undefined) clean.name = cleanName(changes.name);
       if (changes.language !== undefined) clean.language = cleanLanguage(changes.language);
       if (changes.notes !== undefined) clean.notes = cleanNotes(changes.notes);
+      if (changes.hasChildren !== undefined) clean.has_children = changes.hasChildren === true ? 1 : 0;
       const fields = Object.entries(clean);
       if (fields.length === 0) return;
       await db.execute({
         sql: `UPDATE guests SET ${fields.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ?`,
-        args: [...fields.map(([, v]) => v as string), id],
+        args: [...fields.map(([, v]) => v), id],
       });
     },
 
@@ -158,6 +175,27 @@ export function createGuestStore(db: Client, opts: { seed?: SeedGuest[] } = {}) 
         });
       }
       return code;
+    },
+
+    /**
+     * Links two Guests as partners (a household of two), on both sides; null unlinks. Any earlier partner of either
+     * Guest is unlinked first, so a Guest is only ever in one household.
+     */
+    async setPartner(id: string, partnerId: string | null): Promise<void> {
+      await ensure();
+      if (partnerId !== null) {
+        const { rows } = await db.execute({ sql: "SELECT 1 FROM guests WHERE id = ? AND archived = 0", args: [partnerId] });
+        if (partnerId === id || rows.length === 0) throw new ValidationError("Pick another active guest as the partner.");
+      }
+      await db.batch([
+        { sql: "UPDATE guests SET partner_id = NULL WHERE partner_id IN (?, ?) OR id IN (?, ?)", args: [id, partnerId ?? id, id, partnerId ?? id] },
+        ...(partnerId
+          ? [
+              { sql: "UPDATE guests SET partner_id = ? WHERE id = ?", args: [partnerId, id] },
+              { sql: "UPDATE guests SET partner_id = ? WHERE id = ?", args: [id, partnerId] },
+            ]
+          : []),
+      ], "write");
     },
 
     async restore(id: string): Promise<void> {

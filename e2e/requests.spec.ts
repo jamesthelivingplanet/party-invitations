@@ -33,7 +33,7 @@ test("the Host accepts a Request in Spanish: a Guest with a Personal link appear
   await page.goto("/admin/invitations");
   await expect(page.locator("li[data-guest='Zed Acceptable']")).toBeVisible();
   await page.goto("/admin/guests");
-  const row = page.locator("li", { hasText: "Zed Acceptable" }).first();
+  const row = page.locator("li[data-guest='Zed Acceptable']");
   expect(await row.locator("[data-personal-path]").getAttribute("data-personal-path")).toMatch(/^\/i\//);
 });
 

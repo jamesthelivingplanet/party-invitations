@@ -180,3 +180,72 @@ test("regenerating a Personal link gives a new code and keeps the rest of the Gu
   expect(fresh).not.toBe(sarah.personalLinkCode);
   expect(list[1].personalLinkCode).toBe(dave.personalLinkCode);
 });
+
+test("linking two Guests as partners is mutual, and either can be unlinked", async () => {
+  const guests = createGuestStore(testDb());
+  const ana = await guests.add({ name: "Ana Pérez", language: "es", notes: "" });
+  const ben = await guests.add({ name: "Ben Pérez", language: "en", notes: "" });
+
+  await guests.setPartner(ana.id, ben.id);
+
+  const partners = async () => Object.fromEntries((await guests.list()).map((g) => [g.name, g.partnerId]));
+  expect(await partners()).toEqual({ "Ana Pérez": ben.id, "Ben Pérez": ana.id });
+
+  await guests.setPartner(ben.id, null);
+  expect(await partners()).toEqual({ "Ana Pérez": null, "Ben Pérez": null });
+});
+
+test("linking a Guest to someone new leaves their old partner unlinked", async () => {
+  const guests = createGuestStore(testDb());
+  const ana = await guests.add({ name: "Ana", language: "en", notes: "" });
+  const ben = await guests.add({ name: "Ben", language: "en", notes: "" });
+  const cy = await guests.add({ name: "Cy", language: "en", notes: "" });
+  await guests.setPartner(ana.id, ben.id);
+
+  await guests.setPartner(cy.id, ana.id);
+
+  const partners = Object.fromEntries((await guests.list()).map((g) => [g.name, g.partnerId]));
+  expect(partners).toEqual({ Ana: cy.id, Ben: null, Cy: ana.id });
+});
+
+test("a Guest cannot be linked to themselves, or to an archived or unknown Guest", async () => {
+  const guests = createGuestStore(testDb());
+  const ana = await guests.add({ name: "Ana", language: "en", notes: "" });
+  const ben = await guests.add({ name: "Ben", language: "en", notes: "" });
+  await guests.archive(ben.id);
+
+  await expect(guests.setPartner(ana.id, ana.id)).rejects.toThrow(/partner/i);
+  await expect(guests.setPartner(ana.id, ben.id)).rejects.toThrow(/partner/i);
+  await expect(guests.setPartner(ana.id, "gst_nobody")).rejects.toThrow(/partner/i);
+
+  expect((await guests.list({ includeArchived: true })).map((g) => g.partnerId)).toEqual([null, null]);
+});
+
+test("a Guest can be marked as having children when added or edited", async () => {
+  const guests = createGuestStore(testDb());
+  const ana = await guests.add({ name: "Ana", language: "en", notes: "", hasChildren: true });
+  const ben = await guests.add({ name: "Ben", language: "en", notes: "" });
+
+  await guests.update(ben.id, { hasChildren: true });
+  await guests.update(ana.id, { hasChildren: false });
+
+  const flags = Object.fromEntries((await guests.list()).map((g) => [g.name, g.hasChildren]));
+  expect(flags).toEqual({ Ana: false, Ben: true });
+});
+
+test("Guests from before partners existed have no partner and no children, and can then be linked", async () => {
+  const db = testDb();
+  await db.execute(`CREATE TABLE guests (id TEXT PRIMARY KEY, name TEXT NOT NULL, language TEXT NOT NULL,
+    notes TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    personal_link_code TEXT)`);
+  await db.execute("INSERT INTO guests (id, name, language, notes, personal_link_code) VALUES ('a', 'Old One', 'en', 'n', 'codeA')");
+  await db.execute("INSERT INTO guests (id, name, language, notes, personal_link_code) VALUES ('b', 'Old Two', 'es', '', 'codeB')");
+  const guests = createGuestStore(db);
+
+  expect(await guests.list()).toMatchObject([
+    { id: "a", name: "Old One", notes: "n", personalLinkCode: "codeA", partnerId: null, hasChildren: false },
+    { id: "b", name: "Old Two", personalLinkCode: "codeB", partnerId: null, hasChildren: false },
+  ]);
+  await guests.setPartner("a", "b");
+  expect((await guests.list()).map((g) => g.partnerId)).toEqual(["b", "a"]);
+});

@@ -4,6 +4,7 @@ const failureStatuses: Record<string, number> = {
   no_longer_available: 410,
   companion_count: 400,
   companion_incomplete: 400,
+  children_count: 400,
 };
 
 /** The HTTP status for a submit outcome that failed, or undefined when the outcome is not a known failure. */

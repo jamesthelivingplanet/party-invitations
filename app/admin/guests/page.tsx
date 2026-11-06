@@ -23,6 +23,9 @@ export default async function Guests(props: PageProps<"/admin/guests">) {
   const all = await guestStore.list({ includeArchived: true });
   const active = all.filter((g) => !g.archived);
   const archived = all.filter((g) => g.archived);
+  // Active Guests without a partner, who can be picked as someone's partner.
+  const unlinked = active.filter((g) => !g.partnerId);
+  const nameOf = (id: string | null) => all.find((g) => g.id === id)?.name ?? null;
 
   return (
     <AdminShell current="guests">
@@ -54,6 +57,7 @@ export default async function Guests(props: PageProps<"/admin/guests">) {
               <option value="es">Spanish</option>
             </select>
           </div>
+          <HouseholdFields idPrefix="new" choices={unlinked} />
           <div className="sm:col-span-2">
             <label htmlFor="new-notes" className={label}>Notes <span className="font-normal text-zinc-500">(helps match replies, e.g. nicknames, parents)</span></label>
             <textarea id="new-notes" name="notes" rows={2} maxLength={500} className={field} placeholder="e.g. Alex's classmate, goes by Mikey. Parents: Sarah and Tom" />
@@ -70,7 +74,12 @@ export default async function Guests(props: PageProps<"/admin/guests">) {
         ) : (
           <List>
             {active.map((g) => (
-              <GuestRow key={g.id} guest={g} />
+              <GuestRow
+                key={g.id}
+                guest={g}
+                partnerName={nameOf(g.partnerId)}
+                choices={[...all.filter((o) => o.id === g.partnerId), ...unlinked.filter((o) => o.id !== g.id)]}
+              />
             ))}
           </List>
         )}
@@ -101,9 +110,35 @@ export default async function Guests(props: PageProps<"/admin/guests">) {
   );
 }
 
-function GuestRow({ guest }: { guest: Guest }) {
+/** Partner picker and "Has children" checkbox, shared by the add and edit forms. */
+function HouseholdFields({ idPrefix, choices, guest }: { idPrefix: string; choices: Guest[]; guest?: Guest }) {
   return (
-    <li className="px-4 py-3">
+    <>
+      <div>
+        <label htmlFor={`${idPrefix}-partner`} className={label}>
+          Partner <span className="font-normal text-zinc-500">(also a guest, with their own link)</span>
+        </label>
+        <select id={`${idPrefix}-partner`} name="partner_id" defaultValue={guest?.partnerId ?? ""} className={field}>
+          <option value="">No partner</option>
+          {choices.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+              {g.archived ? " (archived)" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold text-zinc-800">
+        <input type="checkbox" name="has_children" defaultChecked={guest?.hasChildren ?? false} className="size-5" />
+        Has children <span className="font-normal text-zinc-500">(asked about them when replying)</span>
+      </label>
+    </>
+  );
+}
+
+function GuestRow({ guest, partnerName, choices }: { guest: Guest; partnerName: string | null; choices: Guest[] }) {
+  return (
+    <li data-guest={guest.name} className="px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -111,7 +146,9 @@ function GuestRow({ guest }: { guest: Guest }) {
             <Badge tone={guest.language === "es" ? "amber" : "blue"}>
               {guest.language === "es" ? "Spanish" : "English"}
             </Badge>
+            {guest.hasChildren && <Badge tone="green">Has children</Badge>}
           </div>
+          {partnerName && <div className="mt-0.5 break-words text-sm text-zinc-700">Partner: {partnerName}</div>}
           {guest.notes && <div className="mt-0.5 break-words text-sm text-zinc-600">{guest.notes}</div>}
         </div>
         <div className="flex shrink-0 flex-col items-end">
@@ -147,6 +184,7 @@ function GuestRow({ guest }: { guest: Guest }) {
               <option value="es">Spanish</option>
             </select>
           </div>
+          <HouseholdFields idPrefix={`p-${guest.id}`} choices={choices} guest={guest} />
           <div className="sm:col-span-2">
             <label htmlFor={`t-${guest.id}`} className={label}>Notes</label>
             <textarea id={`t-${guest.id}`} name="notes" defaultValue={guest.notes} rows={2} maxLength={500} className={field} />

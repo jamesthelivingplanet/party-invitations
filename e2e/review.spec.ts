@@ -87,6 +87,6 @@ test("the Host can add a reply as a new Guest and it counts in the headcount", a
   await page.goto("/admin/invitations");
   await expect(page.locator("li[data-guest='Pat Newcomer']")).toBeVisible();
   await page.goto("/admin/guests");
-  const personal = await page.locator("li", { hasText: "Pat Newcomer" }).first().locator("[data-personal-path]").getAttribute("data-personal-path");
+  const personal = await page.locator("li[data-guest='Pat Newcomer']").locator("[data-personal-path]").getAttribute("data-personal-path");
   expect(personal).toMatch(/^\/i\//);
 });

@@ -49,7 +49,7 @@ test("the Host copies a message, the Guest shows as Sent, can be toggled, and Re
   await expect(row.getByTestId("status")).toHaveText("Sent");
 
   await page.goto("/admin/guests");
-  const personal = await page.locator("li", { hasText: "Zelda Enviada" }).first().locator("[data-personal-path]").getAttribute("data-personal-path");
+  const personal = await page.locator("li[data-guest='Zelda Enviada']").locator("[data-personal-path]").getAttribute("data-personal-path");
   await page.goto("/admin/invitations");
   await page.getByRole("button", { name: "Not replied" }).click();
   await expect(page.locator("li[data-guest='Zelda Enviada']")).toBeVisible();
@@ -72,7 +72,7 @@ test("send-next mode walks through unsent Guests, can skip and come back, and sa
   for (const name of ["Aaa Siguiente", "Bbb Siguiente"]) {
     await page.fill("#new-name", name);
     await page.getByRole("button", { name: "Add guest" }).click();
-    await expect(page.getByText(name).first()).toBeVisible();
+    await expect(page.locator(`li[data-guest='${name}']`)).toBeVisible();
   }
   await page.goto("/admin/invitations/send");
   const heading = page.locator("h2").first();

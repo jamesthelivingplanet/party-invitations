@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { Client } from "@libsql/client";
+import type { Client, InStatement } from "@libsql/client";
 import { ensureRsvpSchema } from "./db";
 import { replyDeadlinePassed, type EventSettings } from "./event";
 import type { Guest, GuestInput, Language } from "./guests";
 import type { JevAnswer } from "./match";
+import { MAX_PARTY_SIZE } from "./party";
 
 export type { JevAnswer };
 export type Jev = (
@@ -17,9 +18,25 @@ export const REVIEW_THRESHOLD = 0.4;
 
 export type Companion = { name: string; kind: "adult" | "child" };
 type CompanionInput = { companions?: Companion[] };
+/**
+ * One of a household's children coming, from "And your children?". Unlike a Companion, the name and the adult or
+ * child label are optional ("" and null); an unlabelled child counts as a child.
+ */
+export type Child = { name: string; kind: "adult" | "child" | null };
 export type SharedReply = { name: string; relation: string; attending: boolean; partySize: number } & CompanionInput;
-export type PersonalReply = { attending: boolean; partySize: number } & CompanionInput;
+export type PersonalReply = {
+  attending: boolean;
+  partySize: number;
+  /** "Are you coming with <partner>?" Only used when coming and the Guest has an active linked partner. */
+  withPartner?: boolean;
+  /**
+   * "And your children?": the children coming ([] for none), or null/left out when not answered. Only used when coming
+   * and the Guest or their partner is marked as having children. They are not part of `partySize`.
+   */
+  children?: Child[] | null;
+} & CompanionInput;
 export type CompanionProblem = "companion_count" | "companion_incomplete";
+export type ChildrenProblem = "children_count";
 export type SubmitOutcome = "confirmed" | "review" | "no_match" | "closed" | CompanionProblem;
 /**
  * What a Shared-link or "Not [name]?" Reply came to. `token` is an unguessable secret given only to this visitor:
@@ -60,7 +77,13 @@ export type Request = {
   /** Jev could not be reached when this person replied. */
   jevUnavailable: boolean;
 };
-export type CurrentReply = { attending: boolean; partySize: number; companions: Companion[] };
+export type CurrentReply = {
+  attending: boolean;
+  partySize: number;
+  companions: Companion[];
+  /** The partner who answered for this Guest, when the Guest has not replied themselves since. */
+  answeredBy: string | null;
+};
 
 /**
  * A Reply that says coming with Party size n needs exactly n-1 named Companions, each adult or child.
@@ -81,14 +104,32 @@ function normalizeParty(r: { attending: boolean; partySize: number; companions?:
   return { ok: true, partySize: r.partySize, companions };
 }
 
+/** Children from untrusted input: names trimmed and optional, labels optional; at most MAX_PARTY_SIZE of them. */
+function normalizeChildren(given: Child[] | null | undefined): { ok: true; children: Child[] | null } | { ok: false; problem: ChildrenProblem } {
+  if (given === null || given === undefined) return { ok: true, children: null };
+  if (!Array.isArray(given) || given.length > MAX_PARTY_SIZE) return { ok: false, problem: "children_count" };
+  return {
+    ok: true,
+    children: given.map((c) => ({
+      name: typeof c?.name === "string" ? c.name.trim().slice(0, 100) : "",
+      kind: c?.kind === "adult" || c?.kind === "child" ? c.kind : null,
+    })),
+  };
+}
+
+export type Household = { partnerName: string | null; partnerComing: boolean; hasChildren: boolean; children: Child[] | null };
+
 export type Reply = {
   id: number;
   createdAt: string;
   name: string;
   relation: string;
   attending: boolean;
+  /** The replier and their Companions; a household's children are kept apart, in `children`. */
   partySize: number;
   companions: Companion[];
+  /** The household's children, as this Reply stated them, or null when it did not answer "And your children?". */
+  children: Child[] | null;
   confidence: number | null;
   suggestedGuestId: string | null;
   suggestedGuestName: string;
@@ -103,6 +144,15 @@ export type Entry = {
   name: string;
   by: "jev" | "assigned" | "new";
   replyCount: number;
+  /** The name of the partner who said this Guest is coming with them, or null when the Guest replied themselves. */
+  answeredBy: string | null;
+  /** How many people this entry adds to the headcount: the Reply's Party size plus `children`. */
+  partySize: number;
+  /**
+   * The household's children counted on this entry, [] when the household said none are coming, or null when they are
+   * not counted here. A household's children are counted on one entry only.
+   */
+  children: Child[] | null;
 };
 
 export type Summary = {
@@ -127,6 +177,7 @@ type Row = {
   attending: number;
   party_size: number;
   companions: string | null;
+  children: string | null;
   matched_guest_id: string | null;
   confidence: number | null;
   status: "matched" | "review" | "unmatched";
@@ -134,12 +185,23 @@ type Row = {
   assigned_guest_id: string | null;
   new_guest_name: string | null;
   review_contact: string | null;
+  answered_by_guest_id: string | null;
 };
 
 type Guests = {
   list(opts?: { includeArchived?: boolean }): Promise<Guest[]>;
   add(input: GuestInput): Promise<Guest>;
 };
+
+function parseChildren(json: string | null): Child[] | null {
+  if (json === null || json === undefined) return null;
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
 
 function parseCompanions(json: string | null): Companion[] {
   try {
@@ -167,6 +229,26 @@ function decide(answer: JevAnswer): Decision {
   return { status: "unmatched", guess: bestId ? { guestId: bestId, confidence: bestP } : null };
 }
 
+/**
+ * A household's children are counted once. Of the household's current Replies that say coming and answered
+ * "And your children?", the newest one (by when it was sent) counts, including an answer of none; the children on the
+ * partner's Reply are left out. A Guest without a partner is a household of one.
+ */
+function countChildrenOncePerHousehold(entries: Entry[], guests: Guest[]): Entry[] {
+  const partnerOf = new Map(guests.map((g) => [g.id, g.partnerId]));
+  const householdOf = (key: string) => [key, partnerOf.get(key) ?? key].sort().join("+");
+  const counted = new Map<string, number>(); // household to the id of the Reply whose children count
+  for (const e of entries) {
+    if (!e.reply.attending || e.reply.children === null) continue;
+    const h = householdOf(e.key);
+    if ((counted.get(h) ?? -1) < e.reply.id) counted.set(h, e.reply.id);
+  }
+  return entries.map((e) => {
+    if (e.children === null || counted.get(householdOf(e.key)) === e.reply.id) return e;
+    return { ...e, children: null, partySize: e.partySize - e.children.length };
+  });
+}
+
 const newToken = () => randomBytes(16).toString("hex");
 
 type Event = { get(): Promise<EventSettings> };
@@ -185,6 +267,18 @@ export function createReplyStore(
   async function setDecision(id: number, sql: string, args: (string | number | null)[]) {
     await ensure();
     await db.execute({ sql: `UPDATE rsvps SET ${sql} WHERE id = ?`, args: [...args, id] });
+  }
+
+  /** The Guest's linked partner, if there is one and they are not archived. */
+  async function activePartner(guest: Guest): Promise<Guest | null> {
+    if (!guest.partnerId) return null;
+    return (await deps.guests.list()).find((g) => g.id === guest.partnerId) ?? null;
+  }
+
+  /** The Reply that currently counts for a Guest, if any. */
+  async function currentEntry(guestId: string): Promise<Entry | null> {
+    const { coming, declined } = await store.summary();
+    return [...coming, ...declined].find((e) => e.key === guestId) ?? null;
   }
 
   async function repliesOpen(): Promise<boolean> {
@@ -240,7 +334,7 @@ export function createReplyStore(
     return match.status === "matched" ? { outcome: "confirmed" } : { outcome: "review", token: token! };
   }
 
-  return {
+  const store = {
     /** Whether Replies can still be sent or changed (the admin is never restricted). */
     repliesOpen,
 
@@ -358,19 +452,44 @@ export function createReplyStore(
     async submitPersonal(
       code: string,
       reply: PersonalReply,
-    ): Promise<"recorded" | "unknown_link" | "no_longer_available" | "closed" | CompanionProblem> {
+    ): Promise<"recorded" | "unknown_link" | "no_longer_available" | "closed" | CompanionProblem | ChildrenProblem> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return "unknown_link";
       if (guest.archived) return "no_longer_available";
       if (!(await this.repliesOpen())) return "closed";
       const party = normalizeParty(reply);
       if (!party.ok) return party.problem;
+      const partner = reply.attending ? await activePartner(guest) : null;
+      // "And your children?" is only asked of a coming Guest whose household is marked as having children.
+      const asked = reply.attending && (guest.hasChildren || !!partner?.hasChildren);
+      const kids = normalizeChildren(asked ? reply.children : null);
+      if (!kids.ok) return kids.problem;
       await ensure();
-      await db.execute({
-        sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)
-              VALUES (?, ?, ?, ?, ?, ?, 1, 'matched')`,
-        args: [guest.name, "Personal link", reply.attending ? 1 : 0, party.partySize, JSON.stringify(party.companions), guest.id],
-      });
+      const statements: InStatement[] = [
+        {
+          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, children, matched_guest_id, confidence, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'matched')`,
+          args: [
+            guest.name,
+            "Personal link",
+            reply.attending ? 1 : 0,
+            party.partySize,
+            JSON.stringify(party.companions),
+            kids.children ? JSON.stringify(kids.children) : null,
+            guest.id,
+          ],
+        },
+      ];
+      // Coming with their partner: the partner is recorded as coming too, unless they already are (which keeps their own
+      // Party size and Companions). An archived partner is never recorded.
+      if (partner && reply.withPartner && !(await currentEntry(partner.id))?.reply.attending) {
+        statements.push({
+          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status, answered_by_guest_id)
+                VALUES (?, 'Answered by partner', 1, 1, '[]', ?, 1, 'matched', ?)`,
+          args: [partner.name, partner.id, guest.id],
+        });
+      }
+      await db.batch(statements, "write");
       return "recorded";
     },
 
@@ -378,11 +497,29 @@ export function createReplyStore(
     async currentForPersonalLink(code: string): Promise<CurrentReply | null> {
       const guest = await this.guestForPersonalLink(code);
       if (!guest) return null;
-      const { coming, declined } = await this.summary();
-      const entry = [...coming, ...declined].find((e) => e.key === guest.id);
+      const entry = await currentEntry(guest.id);
       return entry
-        ? { attending: entry.reply.attending, partySize: entry.reply.partySize, companions: entry.reply.companions }
+        ? { attending: entry.reply.attending, partySize: entry.reply.partySize, companions: entry.reply.companions, answeredBy: entry.answeredBy }
         : null;
+    },
+
+    /**
+     * What the Invitation page needs to ask a household's questions: the Guest's active partner (if any) and whether
+     * they are currently coming, whether the household is marked as having children, and the household's children as
+     * currently counted (null when no coming Reply has answered about them). Null for an unknown link.
+     */
+    async householdForPersonalLink(code: string): Promise<Household | null> {
+      const guest = await this.guestForPersonalLink(code);
+      if (!guest) return null;
+      const partner = await activePartner(guest);
+      const { coming } = await this.summary();
+      const ours = coming.filter((e) => e.key === guest.id || e.key === partner?.id);
+      return {
+        partnerName: partner?.name ?? null,
+        partnerComing: !!partner && ours.some((e) => e.key === partner.id),
+        hasChildren: guest.hasChildren || !!partner?.hasChildren,
+        children: ours.find((e) => e.children !== null)?.children ?? null,
+      };
     },
 
     async assignToGuest(id: number, guestId: string) {
@@ -471,6 +608,7 @@ export function createReplyStore(
         attending: !!r.attending,
         partySize: r.party_size,
         companions: parseCompanions(r.companions),
+        children: parseChildren(r.children),
         confidence: r.confidence,
         suggestedGuestId: r.status === "review" ? r.matched_guest_id : null,
         suggestedGuestName: nameOf(r.status === "review" ? r.matched_guest_id : null),
@@ -482,7 +620,7 @@ export function createReplyStore(
       const review: Reply[] = [];
       const dismissed: Reply[] = [];
       for (const r of [...rows].reverse()) {
-        let eff: Omit<Entry, "replyCount"> | null = null;
+        let eff: Pick<Entry, "reply" | "key" | "name" | "by"> | null = null;
         const reply = toReply(r);
         if (r.decision === "dismissed") {
           dismissed.push(reply);
@@ -499,17 +637,26 @@ export function createReplyStore(
           continue;
         }
         if (archivedIds.has(eff.key)) continue; // archived guests don't count
-        latest.set(eff.key, { ...eff, replyCount: (latest.get(eff.key)?.replyCount ?? 0) + 1 });
+        latest.set(eff.key, {
+          ...eff,
+          replyCount: (latest.get(eff.key)?.replyCount ?? 0) + 1,
+          answeredBy: r.answered_by_guest_id ? nameOf(r.answered_by_guest_id) : null,
+          partySize: reply.partySize + (reply.children?.length ?? 0),
+          children: reply.children,
+        });
       }
 
       const newestFirst = (a: { id: number }, b: { id: number }) => b.id - a.id;
       const byNewest = (a: Entry, b: Entry) => newestFirst(a.reply, b.reply);
       review.sort(newestFirst);
       dismissed.sort(newestFirst);
-      const entries = [...latest.values()];
+      const entries = countChildrenOncePerHousehold([...latest.values()], allGuests);
       const coming = entries.filter((e) => e.reply.attending).sort(byNewest);
-      const headcount = coming.reduce((n, e) => n + e.reply.partySize, 0);
-      const children = coming.reduce((n, e) => n + e.reply.companions.filter((c) => c.kind === "child").length, 0);
+      const headcount = coming.reduce((n, e) => n + e.partySize, 0);
+      const children = coming.reduce(
+        (n, e) => n + e.reply.companions.filter((c) => c.kind === "child").length + (e.children ?? []).filter((c) => c.kind !== "adult").length,
+        0,
+      );
       return {
         guests,
         coming,
@@ -524,4 +671,5 @@ export function createReplyStore(
       };
     },
   };
+  return store;
 }

@@ -8,7 +8,7 @@ async function addGuest(page: import("@playwright/test").Page, name: string, lan
   await page.fill("#new-name", name);
   await page.selectOption("#new-language", language);
   await page.getByRole("button", { name: "Add guest" }).click();
-  const row = page.locator("li", { hasText: name }).first();
+  const row = page.locator(`li[data-guest='${name}']`);
   const path = await row.locator("[data-personal-path]").getAttribute("data-personal-path");
   expect(path).toMatch(/^\/i\/[A-Za-z0-9_-]{22,}$/);
   return path!;
@@ -59,7 +59,7 @@ test("regenerating a link retires the old one, and archiving shows 'no longer av
   await expect(page.getByText("Todo listo")).toBeVisible();
 
   await page.goto("/admin/guests");
-  const row = () => page.locator("li", { hasText: "Rita Regenerate" }).first();
+  const row = () => page.locator("li[data-guest='Rita Regenerate']");
   await row().getByRole("button", { name: "Regenerate link" }).click();
   await expect(row().locator("[data-personal-path]")).not.toHaveAttribute("data-personal-path", oldPath);
   const newPath = (await row().locator("[data-personal-path]").getAttribute("data-personal-path"))!;

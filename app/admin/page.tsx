@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { requireAdminPage } from "@/lib/admin-auth";
 import type { Guest } from "@/lib/guests";
-import type { Companion, Entry, Reply } from "@/lib/replies";
+import type { Child, Companion, Entry, Reply } from "@/lib/replies";
 import { eventStore, replyStore } from "@/lib/stores";
 import { ReviewActions, UndoButton } from "./controls";
 import { AdminShell } from "./shell";
@@ -24,7 +24,13 @@ export default async function Admin() {
 
   const repliedAs = (e: Entry) => (e.reply.name.trim().toLowerCase() !== e.name.toLowerCase() ? e.reply.name : null);
   const tagFor = (e: Entry) =>
-    e.by === "new" ? "Added by you" : e.by === "assigned" ? "Confirmed by you" : null;
+    e.by === "new"
+      ? "Added by you"
+      : e.by === "assigned"
+        ? "Confirmed by you"
+        : e.answeredBy
+          ? `Answered by ${e.answeredBy}`
+          : null;
   const undo = (e: Entry) => (e.by === "jev" ? null : <UndoButton id={e.reply.id} />);
 
   return (
@@ -79,8 +85,9 @@ export default async function Admin() {
                       updated={e.replyCount > 1}
                       tag={tagFor(e)}
                       badge={<Badge tone="green">Coming</Badge>}
-                      size={e.reply.partySize}
+                      size={e.partySize}
                       companions={e.reply.companions}
+                      childList={e.children ?? []}
                       createdAt={e.reply.createdAt}
                       now={now}
                       action={undo(e)}
@@ -184,6 +191,7 @@ function GuestRow({
   badge,
   size,
   companions,
+  childList,
   createdAt,
   now,
   action,
@@ -195,6 +203,7 @@ function GuestRow({
   badge: ReactNode;
   size?: number;
   companions?: Companion[];
+  childList?: Child[];
   createdAt: string;
   now: Date;
   action?: ReactNode;
@@ -211,6 +220,15 @@ function GuestRow({
           <div className="mt-0.5 break-words text-sm text-zinc-600">Replied as &ldquo;{repliedAs}&rdquo;</div>
         )}
         {companions && <CompanionList companions={companions} />}
+        {childList && childList.length > 0 && (
+          <ul aria-label="Children" className="mt-0.5 text-sm text-zinc-600">
+            {childList.map((c, i) => (
+              <li key={i}>
+                {c.name || `Child ${i + 1}`} · {c.kind === "adult" ? "adult" : "child"} (household)
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="mt-0.5">
           <When createdAt={createdAt} now={now} />
         </div>

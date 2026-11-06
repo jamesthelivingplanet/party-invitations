@@ -15,7 +15,7 @@ test("after the Reply deadline links are read-only, the Shared link says closed,
   await page.fill("#new-name", "Dana Deadline");
   await page.selectOption("#new-language", "en");
   await page.getByRole("button", { name: "Add guest" }).click();
-  const path = (await page.locator("li", { hasText: "Dana Deadline" }).first().locator("[data-personal-path]").getAttribute("data-personal-path"))!;
+  const path = (await page.locator("li[data-guest='Dana Deadline']").locator("[data-personal-path]").getAttribute("data-personal-path"))!;
 
   try {
     // Open: she replies as coming for 2.
