@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dashboardNumbers, loginAsHost } from "./helpers";
+import { addGuestOnList, dashboardNumbers, loginAsHost } from "./helpers";
 
 const guestRow = (page: Page, name: string) => page.locator(`li[data-guest='${name}']`);
 const personalPath = async (page: Page, name: string) =>
@@ -72,6 +72,8 @@ test("linked partners: one answers for both and the children, the other sees it 
   await page.goto("/admin");
   expect((await dashboardNumbers(page)).headcount).toBe(before + 4);
   await expect(page.locator("li", { hasText: "Answered by Hana Hogar" })).toHaveCount(0);
+  // Hana's row says why her children are not counted on it.
+  await expect(page.locator("li", { hasText: "Children counted from Hugo Hogar's reply" })).toContainText("Hana Hogar");
 
   // The Host unlinks them.
   await page.goto("/admin/guests");
@@ -80,4 +82,38 @@ test("linked partners: one answers for both and the children, the other sees it 
   await guestRow(page, "Hugo Hogar").getByRole("button", { name: "Save changes" }).click();
   await expect(guestRow(page, "Hugo Hogar")).not.toContainText("Partner:");
   await expect(guestRow(page, "Hana Hogar")).not.toContainText("Partner:");
+
+  // The dashboard still shows who each of them was linked with when they replied.
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Replied while linked with Hugo Hogar" })).toContainText("Hana Hogar");
+  await expect(page.locator("li", { hasText: "Replied while linked with Hana Hogar" })).toContainText("Hugo Hogar");
+  await expect(page.getByText(/Children counted from/)).toHaveCount(0); // each parent's answer counts on its own now
+});
+
+test("a Guest who changes to No withdraws the Reply they gave their partner", async ({ page }) => {
+  await loginAsHost(page);
+  await addGuestOnList(page, "Wanda Withdraw");
+  await page.fill("#new-name", "Walt Withdraw");
+  await page.selectOption("#new-partner", { label: "Wanda Withdraw" });
+  await page.getByRole("button", { name: "Add guest" }).click();
+  await expect(guestRow(page, "Walt Withdraw")).toContainText("Partner: Wanda Withdraw");
+  const wanda = await personalPath(page, "Wanda Withdraw");
+
+  await page.goto(wanda);
+  await page.getByRole("button", { name: "Yes!" }).click();
+  await page.getByRole("group", { name: "Are you coming with Walt?" }).getByRole("button", { name: "Yes" }).click();
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByTestId("reply-companions")).toContainText("Walt Withdraw");
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Answered by Wanda Withdraw" })).toHaveCount(1);
+
+  await page.goto(wanda);
+  await page.getByRole("button", { name: "Change my reply" }).click();
+  await page.getByRole("button", { name: "Can't make it" }).click();
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByTestId("reply-answer")).toHaveText("Not coming");
+
+  await page.goto("/admin");
+  await expect(page.locator("li", { hasText: "Answered by Wanda Withdraw" })).toHaveCount(0);
+  await expect(page.locator("section", { hasText: "Not replied yet" }).locator("li", { hasText: "Walt Withdraw" })).toBeVisible();
 });

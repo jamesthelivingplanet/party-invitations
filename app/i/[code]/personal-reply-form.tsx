@@ -63,11 +63,8 @@ export default function PersonalReplyForm({
       });
       if (res.ok) {
         setSaved({ attending, partySize: attending ? party.partySize : 1, companions: attending ? party.companions : [], answeredBy: null });
-        setHousehold((h) => ({
-          ...h,
-          partnerComing: h.partnerComing || (attending && withPartner === true),
-          children: children ?? h.children,
-        }));
+        const body = await res.json().catch(() => null);
+        if (body?.household) setHousehold(body.household as Household);
         setThanks(true);
         setEditing(false);
         setState("idle");

@@ -1,25 +1,29 @@
 import { expect, test } from "@playwright/test";
-import { dashboardNumbers, loginAsHost, replyOnSharedLink } from "./helpers";
+import { addGuestOnList, dashboardNumbers, loginAsHost, replyOnSharedLink } from "./helpers";
 
 test("a Guest Jev is sure about gets a thank-you and counts as coming", async ({ page }) => {
   await loginAsHost(page);
+  await addGuestOnList(page, "Sunny Sharedlink"); // a Guest of this test's own, so other tests' Replies do not matter
+  await page.goto("/admin");
   const before = await dashboardNumbers(page);
 
-  await replyOnSharedLink(page, { name: "Emma", relation: "neighbor", coming: true, partySize: 3 });
+  await replyOnSharedLink(page, { name: "Sunny", relation: "neighbor", coming: true, partySize: 3 });
   await expect(page.getByText("You're confirmed!")).toBeVisible();
 
   await page.goto("/admin");
   const after = await dashboardNumbers(page);
   expect(after.review).toBe(before.review);
   // Shown under Coming by their list name, with their party size.
-  await expect(page.locator("li", { hasText: "Emma Rodriguez" }).filter({ hasText: "3 people" })).toBeVisible();
+  await expect(page.locator("li", { hasText: "Sunny Sharedlink" }).filter({ hasText: "3 people" })).toBeVisible();
 });
 
 test("a Guest who says they can't come is counted as declined", async ({ page }) => {
   await loginAsHost(page);
+  await addGuestOnList(page, "Dexter Declines"); // a Guest of this test's own, who has not replied anywhere else
+  await page.goto("/admin");
   const before = await dashboardNumbers(page); // other specs share this database
 
-  await replyOnSharedLink(page, { name: "Liam", relation: "soccer teammate", coming: false });
+  await replyOnSharedLink(page, { name: "Dexter", relation: "soccer teammate", coming: false });
   await expect(page.getByText("Thanks for letting us know!")).toBeVisible();
 
   await page.goto("/admin");

@@ -1088,11 +1088,151 @@ test("Replies saved before households existed keep their meaning, and new househ
   });
   const replies = createReplyStore(db, { guests, jev: scriptedJev({}) });
 
-  expect((await replies.summary()).coming).toMatchObject([{ name: "Ben Pérez", partySize: 2, answeredBy: null, children: null }]);
+  expect((await replies.summary()).coming).toMatchObject([{ name: "Ben Pérez", partySize: 2, answeredBy: null, linkedWith: null, children: null }]);
 
   await guests.setPartner(ana.id, ben.id);
   await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid()] });
-  const summary = await replies.summary();
+  let summary = await replies.summary();
   expect(summary.headcount).toBe(4); // Ana, her child, Ben and his Companion Mia (Ben's own Reply kept)
   expect(summary.children).toBe(2);
+  expect(summary.coming.find((e) => e.name === "Ana Pérez")).toMatchObject({ linkedWith: "Ben Pérez", childrenCountedFrom: null });
+
+  // On the upgraded table a Reply given for a partner can be withdrawn too.
+  const cleo = await guests.add({ name: "Cleo", language: "en", notes: "" });
+  const dan = await guests.add({ name: "Dan", language: "en", notes: "" });
+  await guests.setPartner(cleo.id, dan.id);
+  await replies.submitPersonal(cleo.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await replies.submitPersonal(cleo.personalLinkCode, { attending: false, partySize: 1 });
+  summary = await replies.summary();
+  expect(summary.noReply.map((g) => g.name)).toEqual(["Dan"]);
+});
+
+test("answering for a partner who said No themselves leaves their No in place", async () => {
+  const { replies, ana, ben } = await household();
+  await replies.submitPersonal(ben.personalLinkCode, { attending: false, partySize: 1 });
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ attending: false, answeredBy: null });
+  expect((await replies.summary()).headcount).toBe(1);
+});
+
+test("when the Guest changes to No, or comes without their partner, the Reply they gave the partner is withdrawn", async () => {
+  for (const change of [{ attending: false, partySize: 1 }, { attending: true, partySize: 1, withPartner: false }]) {
+    const { replies, ana, ben } = await household();
+    await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+    await replies.submitPersonal(ana.personalLinkCode, change);
+
+    expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+    expect((await replies.summary()).noReply.map((g) => g.name)).toEqual(["Ben Pérez"]);
+  }
+});
+
+test("a partner who replied themselves keeps their own Reply when the Guest later changes", async () => {
+  const { replies, ana, ben } = await household();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 2, companions: [adult("Gran")] });
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: false, partySize: 1 });
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ attending: true, partySize: 2, answeredBy: null });
+  expect((await replies.summary()).headcount).toBe(2);
+});
+
+test("a household Reply remembers who the replier was linked with, even after the Host unlinks them", async () => {
+  const { guests, replies, ana } = await household({ hasChildren: true });
+  const solo = await guests.add({ name: "Solo", language: "en", notes: "" });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true, children: [kid()] });
+  await replies.submitPersonal(solo.personalLinkCode, { attending: true, partySize: 1 });
+
+  await guests.setPartner(ana.id, null);
+
+  const linkedWith = Object.fromEntries((await replies.summary()).coming.map((e) => [e.name, e.linkedWith]));
+  expect(linkedWith).toEqual({ "Ana Pérez": "Ben Pérez", "Ben Pérez": null, Solo: null }); // Ben's Reply is tagged "Answered by" instead
+});
+
+test("after an unlink each parent's own answer about the children counts", async () => {
+  const { guests, replies, ana, ben } = await household({ hasChildren: true });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, children: [kid(), kid()] });
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1, children: [kid(), kid()] });
+  expect((await replies.summary()).children).toBe(2);
+
+  await guests.setPartner(ana.id, null);
+
+  expect((await replies.summary()).children).toBe(4); // explained on the dashboard by "Replied while linked with"
+});
+
+test("answering for a partner again adds no second Reply for them; an answer given by someone else is replaced", async () => {
+  const { guests, replies, ana, ben } = await household();
+  const cleo = await guests.add({ name: "Cleo", language: "en", notes: "" });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  expect((await replies.summary()).coming.find((e) => e.name === "Ben Pérez")).toMatchObject({ replyCount: 1, answeredBy: "Ana Pérez" });
+
+  // Ben is relinked with Cleo, who answers for him: her answer replaces Ana's, and only Cleo can withdraw it now.
+  await guests.setPartner(ben.id, cleo.id);
+  await replies.submitPersonal(cleo.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ attending: true, answeredBy: "Cleo" });
+
+  // When Cleo then says No, Ben goes back to no Reply, not to Ana's old answer.
+  await replies.submitPersonal(cleo.personalLinkCode, { attending: false, partySize: 1 });
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+});
+
+test("a Guest who changes to No withdraws the Reply they gave their partner even while the partner is archived", async () => {
+  const { guests, replies, ana, ben } = await household();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+  await guests.archive(ben.id);
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: false, partySize: 1 });
+  await guests.restore(ben.id);
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toBeNull();
+});
+
+test("a coming Reply that leaves the partner question unanswered withdraws nothing", async () => {
+  const { replies, ana, ben } = await household();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1 });
+
+  expect(await replies.currentForPersonalLink(ben.personalLinkCode)).toMatchObject({ attending: true, answeredBy: "Ana Pérez" });
+});
+
+test("a Reply given for a partner does not say who they were linked with; only the replier's own Reply does", async () => {
+  const { replies, ana } = await household();
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, withPartner: true });
+
+  const byName = Object.fromEntries((await replies.summary()).coming.map((e) => [e.name, e]));
+  expect(byName["Ana Pérez"]).toMatchObject({ linkedWith: "Ben Pérez", answeredBy: null });
+  expect(byName["Ben Pérez"]).toMatchObject({ linkedWith: null, answeredBy: "Ana Pérez" });
+});
+
+test("a parent whose children answer is not the one counted is told whose answer counts", async () => {
+  const { replies, ana, ben } = await household({ hasChildren: true });
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1, children: [kid()] });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, children: [kid(), kid()] });
+
+  const byName = Object.fromEntries((await replies.summary()).coming.map((e) => [e.name, e]));
+  expect(byName["Ana Pérez"]).toMatchObject({ children: [kid(), kid()], childrenCountedFrom: null });
+  expect(byName["Ben Pérez"]).toMatchObject({ children: null, childrenCountedFrom: "Ana Pérez" });
+});
+
+test("an archived parent's children answer is ignored: the other parent's own answer counts, with a note; restoring brings it back", async () => {
+  const { guests, replies, ana, ben } = await household({ hasChildren: true });
+  await replies.submitPersonal(ben.personalLinkCode, { attending: true, partySize: 1, children: [kid()] });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: true, partySize: 1, children: [kid(), kid(), kid()] });
+  expect((await replies.summary()).children).toBe(3);
+
+  await guests.archive(ana.id);
+  let summary = await replies.summary();
+  expect(summary.children).toBe(1);
+  expect(summary.coming).toMatchObject([{ name: "Ben Pérez", partySize: 2, children: [kid()], childrenCountedFrom: "Ben Pérez" }]);
+
+  await guests.restore(ana.id);
+  summary = await replies.summary();
+  expect(summary.children).toBe(3);
+  // The archived-parent note is gone; Ben's row is back to pointing at Ana's newer answer.
+  expect(summary.coming.find((e) => e.name === "Ben Pérez")).toMatchObject({ partySize: 1, children: null, childrenCountedFrom: "Ana Pérez" });
 });

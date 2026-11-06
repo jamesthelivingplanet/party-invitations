@@ -84,6 +84,8 @@ export default async function Admin() {
                       repliedAs={repliedAs(e)}
                       updated={e.replyCount > 1}
                       tag={tagFor(e)}
+                      linkedWith={e.linkedWith}
+                      childrenCountedFrom={e.childrenCountedFrom}
                       badge={<Badge tone="green">Coming</Badge>}
                       size={e.partySize}
                       companions={e.reply.companions}
@@ -110,6 +112,7 @@ export default async function Admin() {
                       repliedAs={repliedAs(e)}
                       updated={e.replyCount > 1}
                       tag={tagFor(e)}
+                      linkedWith={e.linkedWith}
                       badge={<Badge tone="gray">Declined</Badge>}
                       createdAt={e.reply.createdAt}
                       now={now}
@@ -188,6 +191,8 @@ function GuestRow({
   repliedAs,
   updated,
   tag,
+  linkedWith,
+  childrenCountedFrom,
   badge,
   size,
   companions,
@@ -200,6 +205,8 @@ function GuestRow({
   repliedAs: string | null;
   updated: boolean;
   tag?: string | null;
+  linkedWith?: string | null;
+  childrenCountedFrom?: string | null;
   badge: ReactNode;
   size?: number;
   companions?: Companion[];
@@ -215,6 +222,7 @@ function GuestRow({
           <span className="font-semibold text-zinc-900">{name}</span>
           {updated && <Badge tone="blue">Updated reply</Badge>}
           {tag && <Badge tone="amber">{tag}</Badge>}
+          {linkedWith && <Badge tone="gray">Replied while linked with {linkedWith}</Badge>}
         </div>
         {repliedAs && (
           <div className="mt-0.5 break-words text-sm text-zinc-600">Replied as &ldquo;{repliedAs}&rdquo;</div>
@@ -228,6 +236,9 @@ function GuestRow({
               </li>
             ))}
           </ul>
+        )}
+        {childrenCountedFrom && (
+          <div className="mt-0.5 break-words text-sm text-zinc-600">{`Children counted from ${childrenCountedFrom}'s reply`}</div>
         )}
         <div className="mt-0.5">
           <When createdAt={createdAt} now={now} />

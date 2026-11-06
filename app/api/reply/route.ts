@@ -18,5 +18,6 @@ export async function POST(request: Request) {
     children: readChildren(body),
   });
   if (outcome !== "recorded") return Response.json({ error: outcome }, { status: failureStatus(outcome) ?? 400 });
-  return Response.json({ ok: true, attending });
+  // The household as it now stands (a Reply given to the partner may have been recorded or withdrawn).
+  return Response.json({ ok: true, attending, household: await replyStore.householdForPersonalLink(code) });
 }

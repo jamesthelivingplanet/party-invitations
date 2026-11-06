@@ -48,6 +48,18 @@ _Avoid_: Headcount (that is the total across all Replies), guest count
 A person a Guest names in their Reply as coming with them, identified by name and as an adult or a child. Companions count toward Party size and are not on the Guest list.
 _Avoid_: Plus-one, extra guest
 
+**Partner**:
+The one other Guest a Guest is linked with by the Host, forming a Household. Linking is mutual and each keeps their own Personal link. A Guest who says Yes can answer for their Partner, which records a coming Reply for the Partner unless the Partner has replied themselves; it is withdrawn if the Guest later says No (even after the Host unlinks them) or comes without them, unless the Partner has replied themselves since.
+_Avoid_: Spouse, plus-one, couple member
+
+**Household**:
+A Guest and their Partner, or a Guest with no Partner on their own. Its Children are counted once, from the newest coming Reply (of a Guest who is not archived) that answered about them.
+_Avoid_: Family, couple, group
+
+**Children**:
+A Household's children coming, given as a number in answer to "And your children?" when the Host has marked the Guest or their Partner as having children. Unlike Companions, their names and adult/child labels are optional; they count toward the headcount once per Household, on the Reply they are counted from.
+_Avoid_: Kids, dependents, child Companions
+
 **Request**:
 A Reply from someone who is not on the Guest list, who leaves their name and ways to reach them so the Host can decide whether to invite them. The Host accepts a Request (the person becomes a Guest, in a language the Host picks, and the Reply that came with it is kept and counts) or declines it (it is removed, nothing is counted). A Request also keeps Jev's weak guess at the closest Guest (or that Jev was unavailable), for the Host only; the Host can instead give the Request to an existing Guest, which assigns its Reply to them. In the review flow, "Accept request" does the same for a Reply the Host cannot place: it becomes a Guest and the Reply counts for them. Not counted until accepted.
 _Avoid_: Application, lead, walk-in

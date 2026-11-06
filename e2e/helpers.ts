@@ -45,3 +45,11 @@ export async function fillCompanions(page: Page, n: number) {
     await page.selectOption(`select[name=companion-kind-${i}]`, "adult");
   }
 }
+
+/** Adds a Guest through the Guests screen (the Host must be logged in), so a test has a Guest no other test replies for. */
+export async function addGuestOnList(page: Page, name: string) {
+  await page.goto("/admin/guests");
+  await page.fill("#new-name", name);
+  await page.getByRole("button", { name: "Add guest" }).click();
+  await expect(page.locator(`li[data-guest='${name}']`)).toBeVisible();
+}

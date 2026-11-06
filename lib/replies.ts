@@ -146,6 +146,17 @@ export type Entry = {
   replyCount: number;
   /** The name of the partner who said this Guest is coming with them, or null when the Guest replied themselves. */
   answeredBy: string | null;
+  /**
+   * The partner the replier was linked with when this Reply was sent through a Personal link, or null. Kept after an
+   * unlink, so the Host can see why both parents' children count.
+   */
+  linkedWith: string | null;
+  /**
+   * The parent whose answer to "And your children?" the household's children are counted from, when that is not simply
+   * this entry's own Reply: the partner whose newer answer counts instead of this one, or this Guest themselves when
+   * their answer counts only because the partner with a newer answer is archived. Null otherwise.
+   */
+  childrenCountedFrom: string | null;
   /** How many people this entry adds to the headcount: the Reply's Party size plus `children`. */
   partySize: number;
   /**
@@ -186,6 +197,7 @@ type Row = {
   new_guest_name: string | null;
   review_contact: string | null;
   answered_by_guest_id: string | null;
+  linked_with_guest_id: string | null;
 };
 
 type Guests = {
@@ -232,20 +244,24 @@ function decide(answer: JevAnswer): Decision {
 /**
  * A household's children are counted once. Of the household's current Replies that say coming and answered
  * "And your children?", the newest one (by when it was sent) counts, including an answer of none; the children on the
- * partner's Reply are left out. A Guest without a partner is a household of one.
+ * partner's Reply are left out. A Guest without a partner is a household of one. Archived Guests' Replies are not among
+ * `entries`, so their answer never counts; `archived` (their current Replies) only says when that made a difference.
  */
-function countChildrenOncePerHousehold(entries: Entry[], guests: Guest[]): Entry[] {
+function countChildrenOncePerHousehold(entries: Entry[], archived: Entry[], guests: Guest[]): Entry[] {
   const partnerOf = new Map(guests.map((g) => [g.id, g.partnerId]));
   const householdOf = (key: string) => [key, partnerOf.get(key) ?? key].sort().join("+");
-  const counted = new Map<string, number>(); // household to the id of the Reply whose children count
-  for (const e of entries) {
-    if (!e.reply.attending || e.reply.children === null) continue;
+  const answered = (e: Entry) => e.reply.attending && e.reply.children !== null;
+  const counted = new Map<string, Entry>(); // household to the entry whose children count
+  for (const e of entries.filter(answered)) {
     const h = householdOf(e.key);
-    if ((counted.get(h) ?? -1) < e.reply.id) counted.set(h, e.reply.id);
+    if ((counted.get(h)?.reply.id ?? -1) < e.reply.id) counted.set(h, e);
   }
   return entries.map((e) => {
-    if (e.children === null || counted.get(householdOf(e.key)) === e.reply.id) return e;
-    return { ...e, children: null, partySize: e.partySize - e.children.length };
+    const winner = counted.get(householdOf(e.key));
+    if (!winner || !answered(e)) return e;
+    if (winner !== e) return { ...e, children: null, partySize: e.partySize - e.children!.length, childrenCountedFrom: winner.name };
+    const newerArchived = archived.some((a) => answered(a) && householdOf(a.key) === householdOf(e.key) && a.reply.id > e.reply.id);
+    return newerArchived ? { ...e, childrenCountedFrom: e.name } : e;
   });
 }
 
@@ -273,6 +289,12 @@ export function createReplyStore(
   async function activePartner(guest: Guest): Promise<Guest | null> {
     if (!guest.partnerId) return null;
     return (await deps.guests.list()).find((g) => g.id === guest.partnerId) ?? null;
+  }
+
+  /** The Guest who gave a Reply for someone else, or null for a Reply the person sent themselves. */
+  async function answeredByOf(replyId: number): Promise<string | null> {
+    const { rows } = await db.execute({ sql: "SELECT answered_by_guest_id FROM rsvps WHERE id = ?", args: [replyId] });
+    return (rows[0]?.answered_by_guest_id as string | null | undefined) ?? null;
   }
 
   /** The Reply that currently counts for a Guest, if any. */
@@ -459,7 +481,7 @@ export function createReplyStore(
       if (!(await this.repliesOpen())) return "closed";
       const party = normalizeParty(reply);
       if (!party.ok) return party.problem;
-      const partner = reply.attending ? await activePartner(guest) : null;
+      const partner = await activePartner(guest);
       // "And your children?" is only asked of a coming Guest whose household is marked as having children.
       const asked = reply.attending && (guest.hasChildren || !!partner?.hasChildren);
       const kids = normalizeChildren(asked ? reply.children : null);
@@ -467,8 +489,8 @@ export function createReplyStore(
       await ensure();
       const statements: InStatement[] = [
         {
-          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, children, matched_guest_id, confidence, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'matched')`,
+          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, children, matched_guest_id, confidence, status, linked_with_guest_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'matched', ?)`,
           args: [
             guest.name,
             "Personal link",
@@ -477,16 +499,45 @@ export function createReplyStore(
             JSON.stringify(party.companions),
             kids.children ? JSON.stringify(kids.children) : null,
             guest.id,
+            partner?.id ?? null,
           ],
         },
       ];
-      // Coming with their partner: the partner is recorded as coming too, unless they already are (which keeps their own
-      // Party size and Companions). An archived partner is never recorded.
-      if (partner && reply.withPartner && !(await currentEntry(partner.id))?.reply.attending) {
+      // Coming with their partner: the partner is recorded as coming too, unless they replied themselves (their own
+      // answer, Yes or No, always stands) or this Guest already answered for them. An answer someone else gave for the
+      // partner is replaced (withdrawn), so it cannot come back later. An archived partner is never recorded.
+      if (partner && reply.attending && reply.withPartner) {
+        const partnerNow = await currentEntry(partner.id);
+        if (!partnerNow || (partnerNow.answeredBy !== null && (await answeredByOf(partnerNow.reply.id)) !== guest.id)) {
+          statements.push(
+            {
+              sql: `UPDATE rsvps SET withdrawn = 1
+                    WHERE matched_guest_id = ? AND answered_by_guest_id IS NOT NULL AND withdrawn IS NULL`,
+              args: [partner.id],
+            },
+            {
+              sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status, answered_by_guest_id)
+                    VALUES (?, 'Answered by partner', 1, 1, '[]', ?, 1, 'matched', ?)`,
+              args: [partner.name, partner.id, guest.id],
+            },
+          );
+        }
+      }
+      // Withdrawing the Replies this Guest gave for others, while those people have not replied themselves since (they go
+      // back to no Reply, or to their own earlier one). Saying No withdraws all of them, also for a partner who is
+      // archived or since unlinked; coming without the partner withdraws only the one given to that partner.
+      const saysNo = !reply.attending;
+      const notWithPartner = reply.attending && partner !== null && reply.withPartner === false;
+      if (saysNo || notWithPartner) {
+        const onlyFor = notWithPartner ? partner!.id : null;
         statements.push({
-          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status, answered_by_guest_id)
-                VALUES (?, 'Answered by partner', 1, 1, '[]', ?, 1, 'matched', ?)`,
-          args: [partner.name, partner.id, guest.id],
+          sql: `UPDATE rsvps SET withdrawn = 1
+                WHERE answered_by_guest_id = ? AND withdrawn IS NULL AND (? IS NULL OR matched_guest_id = ?)
+                  AND id > COALESCE((SELECT MAX(own.id) FROM rsvps own
+                                     WHERE own.answered_by_guest_id IS NULL
+                                       AND ((own.decision IS NULL AND own.status = 'matched' AND own.matched_guest_id = rsvps.matched_guest_id)
+                                            OR (own.decision = 'assigned' AND own.assigned_guest_id = rsvps.matched_guest_id))), 0)`,
+          args: [guest.id, onlyFor, onlyFor],
         });
       }
       await db.batch(statements, "write");
@@ -599,7 +650,8 @@ export function createReplyStore(
       const guests = allGuests.filter((g) => !g.archived);
       const archivedIds = new Set(allGuests.filter((g) => g.archived).map((g) => g.id));
       const nameOf = (id: string | null) => allGuests.find((g) => g.id === id)?.name ?? "—";
-      const rows = (await db.execute("SELECT * FROM rsvps ORDER BY id DESC")).rows as unknown as Row[];
+      // A withdrawn Reply (one a partner gave and then took back) is as if it was never sent.
+      const rows = (await db.execute("SELECT * FROM rsvps WHERE withdrawn IS NULL ORDER BY id DESC")).rows as unknown as Row[];
       const toReply = (r: Row): Reply => ({
         id: r.id,
         createdAt: r.created_at,
@@ -617,6 +669,7 @@ export function createReplyStore(
 
       // Apply the host's decisions on top of Jev's matches (oldest first, so the latest reply wins).
       const latest = new Map<string, Entry>();
+      const archivedLatest = new Map<string, Entry>();
       const review: Reply[] = [];
       const dismissed: Reply[] = [];
       for (const r of [...rows].reverse()) {
@@ -636,11 +689,14 @@ export function createReplyStore(
           review.push(reply);
           continue;
         }
-        if (archivedIds.has(eff.key)) continue; // archived guests don't count
-        latest.set(eff.key, {
+        // Archived Guests don't count; their current Replies are kept apart.
+        const into = archivedIds.has(eff.key) ? archivedLatest : latest;
+        into.set(eff.key, {
           ...eff,
-          replyCount: (latest.get(eff.key)?.replyCount ?? 0) + 1,
+          replyCount: (into.get(eff.key)?.replyCount ?? 0) + 1,
           answeredBy: r.answered_by_guest_id ? nameOf(r.answered_by_guest_id) : null,
+          linkedWith: r.linked_with_guest_id ? nameOf(r.linked_with_guest_id) : null,
+          childrenCountedFrom: null,
           partySize: reply.partySize + (reply.children?.length ?? 0),
           children: reply.children,
         });
@@ -650,7 +706,7 @@ export function createReplyStore(
       const byNewest = (a: Entry, b: Entry) => newestFirst(a.reply, b.reply);
       review.sort(newestFirst);
       dismissed.sort(newestFirst);
-      const entries = countChildrenOncePerHousehold([...latest.values()], allGuests);
+      const entries = countChildrenOncePerHousehold([...latest.values()], [...archivedLatest.values()], allGuests);
       const coming = entries.filter((e) => e.reply.attending).sort(byNewest);
       const headcount = coming.reduce((n, e) => n + e.partySize, 0);
       const children = coming.reduce(

@@ -15,6 +15,8 @@ const LATER_COLUMNS: [string, string][] = [
   ["companions", "TEXT"], // JSON list of { name, kind: "adult" | "child" }; NULL on older replies
   ["children", "TEXT"], // JSON list of { name, kind: "adult" | "child" | null } for a household's children; NULL when not asked
   ["answered_by_guest_id", "TEXT"], // the partner who said this Guest is coming with them; NULL when the Guest replied themselves
+  ["linked_with_guest_id", "TEXT"], // the partner a Personal-link replier was linked with when replying; NULL if none
+  ["withdrawn", "INTEGER"], // 1 when the partner who gave this Reply took it back (said No, or coming without them); NULL otherwise
 ];
 
 export async function ensureRsvpSchema(client: Client) {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginAsHost, replyOnSharedLink } from "./helpers";
+import { addGuestOnList, loginAsHost, replyOnSharedLink } from "./helpers";
 
 const PLACE = "Secret Venue 123";
 
@@ -7,6 +7,9 @@ test.describe.configure({ mode: "serial" });
 
 test("the Shared link hides the place until the Guest list recognises someone who is coming", async ({ page, request }) => {
   await loginAsHost(page);
+  // Guests of this spec's own, so the Shared-link tests' Guests keep their "no Reply yet" state.
+  await addGuestOnList(page, "Priya Privacy");
+  await addGuestOnList(page, "Noor Privacy");
   await page.goto("/admin/settings");
   await page.fill("input[name=place]", PLACE);
   await page.fill("input[name=mapUrl]", "https://maps.example/secret");
@@ -26,19 +29,19 @@ test("the Shared link hides the place until the Guest list recognises someone wh
   expect(publicIcs).not.toContain("maps.example");
 
   // An unsure Match learns nothing either.
-  await replyOnSharedLink(page, { name: "Maybe Michael", relation: "privacy-unsure", coming: true, partySize: 1 });
+  await replyOnSharedLink(page, { name: "Maybe Priya", relation: "privacy-unsure", coming: true, partySize: 1 });
   await expect(page.getByText("We got your reply!")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(PLACE);
 
   // A recognised Guest who is coming gets the place, the map link and calendar buttons.
-  await replyOnSharedLink(page, { name: "Emma", relation: "neighbor", coming: true, partySize: 1 });
+  await replyOnSharedLink(page, { name: "Priya", relation: "neighbor", coming: true, partySize: 1 });
   await expect(page.getByText("You're confirmed!")).toBeVisible();
   await expect(page.getByRole("link", { name: /Secret Venue 123/ })).toHaveAttribute("href", "https://maps.example/secret");
   await expect(page.locator("a[href*=\"location=Secret\"]")).toBeVisible();
 });
 
 test("a recognised Guest who can't come is not told the place", async ({ page }) => {
-  await replyOnSharedLink(page, { name: "Liam", relation: "soccer teammate", coming: false });
+  await replyOnSharedLink(page, { name: "Noor", relation: "soccer teammate", coming: false });
   await expect(page.getByText("Thanks for letting us know!")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(PLACE);
 });
