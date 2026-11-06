@@ -87,7 +87,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
     <>
       <p className="mt-4 text-sm font-bold uppercase tracking-[0.3em] text-yellow-400">{t.startEngines}</p>
       <h1 className="mt-2 text-5xl font-black uppercase italic leading-tight text-red-500">{t.hello(guest.name)}</h1>
-      <p className="mt-3 text-zinc-300">{t.invited(party.child, party.theme[locale])}</p>
+      <p className="mt-3 text-zinc-300">{t.invited(party.child, party.theme[locale], party.age)}</p>
 
       <dl className="mt-8 grid gap-3 rounded-2xl border-2 border-dashed border-yellow-400 p-5 text-left">
         {rows.map(([k, v]) => (

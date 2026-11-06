@@ -7,11 +7,22 @@ export function resolveLocale(param?: string | string[], acceptLanguage?: string
   return acceptLanguage?.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
+function ordinalEn(n: number) {
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
+}
+
+const ES_ORDINALS = ["", "primer", "segundo", "tercer", "cuarto", "quinto", "sexto", "séptimo", "octavo", "noveno", "décimo"];
+function ordinalEs(n: number) {
+  return ES_ORDINALS[n] || `${n}.º`;
+}
+
 const en = {
   startEngines: "Start your engines",
   title: (name: string) => `${name}'s Birthday Race`,
-  invited: (child: string, theme: string) =>
-    `You're invited to ${child}'s ${theme}-themed birthday party!`,
+  invited: (child: string, theme: string, age: number) =>
+    `You're invited to ${child}'s ${ordinalEn(age)} birthday party! ${theme} theme.`,
   date: "📅 Date",
   time: "⏰ Time",
   where: "📍 Where",
@@ -109,8 +120,8 @@ const en = {
 const es: typeof en = {
   startEngines: "Enciendan sus motores",
   title: (name) => `La Carrera de Cumpleaños de ${name}`,
-  invited: (child, theme) =>
-    `¡Estás invitado a la fiesta de cumpleaños de ${child}, con temática de ${theme}!`,
+  invited: (child, theme, age) =>
+    `¡Estás invitado al ${ordinalEs(age)} cumpleaños de ${child}! Temática de ${theme}.`,
   date: "📅 Fecha",
   time: "⏰ Hora",
   where: "📍 Lugar",

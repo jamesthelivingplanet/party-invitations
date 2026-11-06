@@ -1,6 +1,7 @@
 export const party = {
   child: "Alex Morgan Smith",
   childFirst: "Alex",
+  age: 4,
   theme: { en: "Racing Car", es: "Racing Car" },
 };
 

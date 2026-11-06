@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Alex's Birthday Race",
-  description: "You're invited to Alex's Racing Car-themed birthday party!",
+  description: "You're invited to Alex's 4th birthday party! Racing Car theme.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
