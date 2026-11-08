@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { InvitationRow } from "@/lib/invitations";
 import { resetGuestMessage, saveGuestMessage, toggleSent } from "./actions";
+import { HostReply } from "../host-reply";
 import { ShareButton } from "./share-button";
 
 const label = "mb-1.5 block text-sm font-semibold text-zinc-800";
@@ -82,6 +83,7 @@ export function GuestList({
                   </button>
                 </form>
               </div>
+              {r.status !== "replied" && <HostReply guestId={r.guestId} name={r.name} partnerName={r.partnerName} />}
               <details className="group">
                 <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-zinc-700 underline-offset-2 hover:underline">Edit message</summary>
                 <div className="space-y-3 pt-2">

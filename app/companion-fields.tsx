@@ -5,6 +5,8 @@ import { dictionaries, type Locale } from "@/lib/i18n";
 import { clampPartySize, MAX_PARTY_SIZE } from "@/lib/party";
 import type { Companion } from "@/lib/replies";
 
+export { readParty } from "@/lib/companions-input";
+
 
 const input =
   "mt-1 w-full rounded-lg border-2 border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-red-600";
@@ -79,14 +81,4 @@ export function CompanionFields({
       ))}
     </>
   );
-}
-
-/** Reads Party size and Companions back out of a form that used CompanionFields. */
-export function readParty(form: FormData): { partySize: number; companions: Companion[] } {
-  const partySize = clampPartySize(form.get("partySize"));
-  const companions = Array.from({ length: partySize - 1 }, (_, i) => ({
-    name: String(form.get(`companion-name-${i}`) ?? ""),
-    kind: String(form.get(`companion-kind-${i}`) ?? "") as Companion["kind"],
-  }));
-  return { partySize, companions };
 }

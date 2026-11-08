@@ -142,7 +142,7 @@ export type Entry = {
   reply: Reply;
   key: string;
   name: string;
-  by: "jev" | "assigned" | "new";
+  by: "jev" | "assigned" | "new" | "host";
   replyCount: number;
   /** The name of the partner who said this Guest is coming with them, or null when the Guest replied themselves. */
   answeredBy: string | null;
@@ -192,7 +192,7 @@ type Row = {
   matched_guest_id: string | null;
   confidence: number | null;
   status: "matched" | "review" | "unmatched";
-  decision: "assigned" | "new_guest" | "dismissed" | null;
+  decision: "assigned" | "new_guest" | "dismissed" | "host" | null;
   assigned_guest_id: string | null;
   new_guest_name: string | null;
   review_contact: string | null;
@@ -640,7 +640,60 @@ export function createReplyStore(
       await setDecision(id, "decision='dismissed', assigned_guest_id=NULL, new_guest_name=NULL", []);
     },
 
+    /**
+     * The Host records an answer a Guest gave in person: it becomes the Guest's current Reply (a newer Reply from the
+     * Guest still wins). Coming needs Party size and one named Companion per extra person, as on the invitation page.
+     * `withPartner` also records the Guest's active partner as coming, the way a Personal link does.
+     */
+    async recordForGuest(
+      guestId: string,
+      reply: { attending: boolean; partySize: number; withPartner?: boolean } & CompanionInput,
+    ): Promise<"recorded" | "unknown_guest" | CompanionProblem> {
+      const guest = (await deps.guests.list()).find((g) => g.id === guestId);
+      if (!guest) return "unknown_guest";
+      const party = normalizeParty(reply);
+      if (!party.ok) return party.problem;
+      await ensure();
+      const statements: InStatement[] = [
+        {
+          sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status, decision)
+                VALUES (?, 'Told the Host', ?, ?, ?, ?, 1, 'matched', 'host')`,
+          args: [guest.name, reply.attending ? 1 : 0, party.partySize, JSON.stringify(party.companions), guest.id],
+        },
+      ];
+      const partner = await activePartner(guest);
+      if (partner && reply.attending && reply.withPartner) {
+        const partnerNow = await currentEntry(partner.id);
+        // The partner's own answer always stands; anything else is replaced.
+        if (!partnerNow || partnerNow.answeredBy !== null || partnerNow.by === "host") {
+          statements.push({
+            sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status, answered_by_guest_id)
+                  VALUES (?, 'Answered by partner', 1, 1, '[]', ?, 1, 'matched', ?)`,
+            args: [partner.name, partner.id, guest.id],
+          });
+        }
+      }
+      await db.batch(statements, "write");
+      return "recorded";
+    },
+
     async undo(id: number) {
+      await ensure();
+      const row = (await db.execute({ sql: "SELECT decision, matched_guest_id FROM rsvps WHERE id = ?", args: [id] })).rows[0];
+      if (row?.decision === "host") {
+        // Take back what the Host recorded, with the partner's answer that went with it (both made in the same save).
+        await db.batch(
+          [
+            { sql: "UPDATE rsvps SET withdrawn = 1 WHERE id = ?", args: [id] },
+            {
+              sql: "UPDATE rsvps SET withdrawn = 1 WHERE answered_by_guest_id = ? AND id > ? AND withdrawn IS NULL",
+              args: [row.matched_guest_id as string, id],
+            },
+          ],
+          "write",
+        );
+        return;
+      }
       await setDecision(id, "decision=NULL, assigned_guest_id=NULL, new_guest_name=NULL", []);
     },
 
@@ -682,6 +735,8 @@ export function createReplyStore(
           eff = { reply, key: r.assigned_guest_id, name: nameOf(r.assigned_guest_id), by: "assigned" };
         } else if (r.decision === "new_guest" && r.new_guest_name) {
           eff = { reply, key: `new:${r.id}`, name: r.new_guest_name, by: "new" };
+        } else if (r.decision === "host" && r.matched_guest_id) {
+          eff = { reply, key: r.matched_guest_id, name: nameOf(r.matched_guest_id), by: "host" };
         } else if (r.status === "matched" && r.matched_guest_id) {
           eff = { reply, key: r.matched_guest_id, name: nameOf(r.matched_guest_id), by: "jev" };
         }

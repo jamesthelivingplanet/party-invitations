@@ -1236,3 +1236,57 @@ test("an archived parent's children answer is ignored: the other parent's own an
   // The archived-parent note is gone; Ben's row is back to pointing at Ana's newer answer.
   expect(summary.coming.find((e) => e.name === "Ben Pérez")).toMatchObject({ partySize: 1, children: null, childrenCountedFrom: "Ana Pérez" });
 });
+
+test("the Host records an answer given in person; it counts, shows who entered it, and can be undone", async () => {
+  const { guests, replies } = await setup();
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  const ben = await guests.add({ name: "Ben", language: "es", notes: "" });
+
+  expect(await replies.recordForGuest(ana.id, { attending: true, ...party(3) })).toBe("recorded");
+  expect(await replies.recordForGuest(ben.id, { attending: false, partySize: 1 })).toBe("recorded");
+  const s = await replies.summary();
+  expect(s.coming.map((e) => [e.name, e.by, e.partySize])).toEqual([["Ana", "host", 3]]);
+  expect(s.declined.map((e) => [e.name, e.by])).toEqual([["Ben", "host"]]);
+  expect(s.noReply).toEqual([]);
+  expect(s.headcount).toBe(3);
+
+  await replies.undo(s.coming[0].reply.id);
+  const after = await replies.summary();
+  expect(after.coming).toEqual([]);
+  expect(after.noReply.map((g) => g.name)).toEqual(["Ana"]);
+});
+
+test("a Reply recorded by the Host needs the right number of named Companions, and a real guest", async () => {
+  const { guests, replies } = await setup();
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  expect(await replies.recordForGuest(ana.id, { attending: true, partySize: 3, companions: [] })).toBe("companion_count");
+  expect(await replies.recordForGuest("gst_nobody", { attending: false, partySize: 1 })).toBe("unknown_guest");
+  expect((await replies.summary()).noReply).toHaveLength(1);
+});
+
+test("recording a couple together counts both, and undoing takes back both", async () => {
+  const { guests, replies } = await setup();
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  const ben = await guests.add({ name: "Ben", language: "es", notes: "" });
+  await guests.setPartner(ana.id, ben.id);
+
+  await replies.recordForGuest(ana.id, { attending: true, partySize: 1, withPartner: true });
+  const s = await replies.summary();
+  expect(s.coming.map((e) => e.name).sort()).toEqual(["Ana", "Ben"]);
+  expect(s.headcount).toBe(2);
+
+  await replies.undo(s.coming.find((e) => e.name === "Ana")!.reply.id);
+  const after = await replies.summary();
+  expect(after.coming).toEqual([]);
+  expect(after.noReply).toHaveLength(2);
+});
+
+test("a Guest's own newer Reply replaces what the Host recorded", async () => {
+  const { guests, replies } = await setup();
+  const ana = await guests.add({ name: "Ana", language: "es", notes: "" });
+  await replies.recordForGuest(ana.id, { attending: true, partySize: 1 });
+  await replies.submitPersonal(ana.personalLinkCode, { attending: false, partySize: 1 });
+  const s = await replies.summary();
+  expect(s.coming).toEqual([]);
+  expect(s.declined.map((e) => [e.name, e.by])).toEqual([["Ana", "jev"]]);
+});

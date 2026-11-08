@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
+import { readParty } from "@/lib/companions-input";
 import { replyStore } from "@/lib/stores";
 
 /**
@@ -29,4 +30,20 @@ export async function decide(formData: FormData) {
   else throw new Error("Unknown action");
 
   revalidatePath("/admin");
+}
+
+/** The Host records what a Guest told them in person: coming (with Party size and Companions) or not coming. */
+export async function recordForGuest(formData: FormData) {
+  await requireAdminAction();
+  const guestId = String(formData.get("guest") ?? "");
+  const attending = formData.get("answer") === "yes";
+  const { partySize, companions } = attending ? readParty(formData) : { partySize: 1, companions: [] };
+  const result = await replyStore.recordForGuest(guestId, {
+    attending,
+    partySize,
+    companions,
+    withPartner: formData.get("withPartner") === "on",
+  });
+  if (result !== "recorded") throw new Error(`Could not record the reply: ${result}`);
+  revalidatePath("/admin", "layout");
 }

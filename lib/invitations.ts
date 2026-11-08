@@ -15,6 +15,8 @@ export type InvitationRow = {
   sentAt: string | null;
   /** True when the Host has edited this Guest's message by hand (a one-off edit saved with the Invitation). */
   hasCustomMessage: boolean;
+  /** The Guest's active linked partner, for "coming with" when the Host records an in-person answer. */
+  partnerName: string | null;
 };
 
 export class ValidationError extends Error {}
@@ -146,6 +148,7 @@ export function createInvitationStore(
           status: replied.has(g.id) ? "replied" : at ? "sent" : "not_sent",
           sentAt: at,
           hasCustomMessage: custom.has(g.id),
+          partnerName: summary.guests.find((p) => p.id === g.partnerId)?.name ?? null,
         };
       });
       return opts.notReplied ? all.filter((r) => r.status !== "replied") : all;

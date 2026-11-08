@@ -5,6 +5,7 @@ import type { Guest } from "@/lib/guests";
 import type { Child, Companion, Entry, Reply } from "@/lib/replies";
 import { eventStore, replyStore } from "@/lib/stores";
 import { ReviewActions, UndoButton } from "./controls";
+import { HostReply } from "./host-reply";
 import { AdminShell } from "./shell";
 import { Badge, Confidence, Empty, List, PartySize, Section, StatCard, When, formatAbsolute } from "./ui";
 
@@ -26,7 +27,9 @@ export default async function Admin() {
   const tagFor = (e: Entry) =>
     e.by === "new"
       ? "Added by you"
-      : e.by === "assigned"
+      : e.by === "host"
+        ? "Entered by you"
+        : e.by === "assigned"
         ? "Confirmed by you"
         : e.answeredBy
           ? `Answered by ${e.answeredBy}`
@@ -135,6 +138,9 @@ export default async function Admin() {
                     <li key={g.id} className="px-4 py-3">
                       <div className="font-semibold text-zinc-900">{g.name}</div>
                       {g.notes && <div className="mt-0.5 text-sm text-zinc-600">{g.notes}</div>}
+                      <div className="mt-2">
+                        <HostReply guestId={g.id} name={g.name} partnerName={guests.find((p) => p.id === g.partnerId)?.name ?? null} />
+                      </div>
                     </li>
                   ))}
                 </List>
