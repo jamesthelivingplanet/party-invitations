@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
 import { replyDeadlineDate } from "@/lib/event";
-import { formatDate, party } from "@/lib/party";
+import { formatDate } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
 import AddToCalendar from "../../add-to-calendar";
 import RacingCar from "../../racing-car";
@@ -17,6 +17,7 @@ const checker = "repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 50% / 28px 2
 export default async function PersonalInvitation(props: PageProps<"/i/[code]">) {
   const { code } = await props.params;
   const { lang } = await props.searchParams;
+  const event = await eventStore.get();
   const guest = await replyStore.guestForPersonalLink(code);
   // A Guest sees their own language first; the toggle (?lang=) overrides it. Unknown links fall back to the browser.
   const locale = resolveLocale(lang, guest?.language === "es" ? "es" : guest ? "en" : null);
@@ -27,7 +28,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
     <main className="min-h-screen bg-zinc-900 text-white">
       <LangSync locale={locale} />
       <div className="h-7" style={{ background: checker }} />
-      <RacingCar />
+      <RacingCar emblem={event.emblem} initial={event.childFirstName} />
       <section className="mx-auto max-w-xl px-5 py-10 text-center">
         <div className="flex justify-end">
           <Link
@@ -62,7 +63,6 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
     );
   }
 
-  const event = await eventStore.get();
   const current = await replyStore.currentForPersonalLink(code);
   const household = (await replyStore.householdForPersonalLink(code))!;
   const deadline = replyDeadlineDate(event);
@@ -80,8 +80,8 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
         (event.place ?? t.tbd)
       ),
     ],
-    [t.age, t.ageValue(party.age)],
-    [t.clothingSize, party.clothingSize],
+    ...(event.childAge !== null ? [[t.age, t.ageValue(event.childAge)] as [string, string]] : []),
+    ...(event.clothingSize ? [[t.clothingSize, event.clothingSize] as [string, string]] : []),
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
 
@@ -89,7 +89,7 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
     <>
       <p className="mt-4 text-sm font-bold uppercase tracking-[0.3em] text-yellow-400">{t.startEngines}</p>
       <h1 className="mt-2 text-5xl font-black uppercase italic leading-tight text-red-500">{t.hello(guest.name)}</h1>
-      <p className="mt-3 text-zinc-300">{t.invited(party.child, party.theme[locale], party.age)}</p>
+      <p className="mt-3 text-zinc-300">{t.invited(event.childName, event.theme, event.childAge)}</p>
 
       <dl className="mt-8 grid gap-3 rounded-2xl border-2 border-dashed border-yellow-400 p-5 text-left">
         {rows.map(([k, v]) => (

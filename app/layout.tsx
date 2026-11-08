@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alex's Birthday Race",
-  description: "You're invited to Alex's 4th birthday party! Racing Car theme.",
+  title: "Birthday Invitation",
+  description: "You're invited to a birthday party!",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

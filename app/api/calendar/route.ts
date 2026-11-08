@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   return new Response(buildIcs(visible, new Date()), {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="party-invitations.ics"',
+      "Content-Disposition": 'attachment; filename="birthday.ics"',
     },
   });
 }

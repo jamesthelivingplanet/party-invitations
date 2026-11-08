@@ -2,17 +2,23 @@ import { expect, test } from "vitest";
 import { testDb } from "@/test/db";
 import { createEventStore, replyDeadlineDate, timeZoneOptions, TIME_ZONE_CHOICES, type EventSettings } from "./event";
 
-test("a fresh event is Alex's party on 2026-12-19 with no time, place or deadline yet", async () => {
+test("a fresh event is a generic birthday party on 2030-06-15 with no time, place or deadline yet", async () => {
   const event = await createEventStore(testDb()).get();
 
   expect(event).toEqual({
-    name: "Alex's Birthday",
-    date: "2026-12-19",
+    name: "Birthday Party",
+    date: "2030-06-15",
     time: null,
     place: null,
     mapUrl: null,
     replyDeadlineDays: null,
     timeZone: "America/New_York",
+    childName: null,
+    childFirstName: null,
+    theme: null,
+    childAge: null,
+    clothingSize: null,
+    emblem: "star",
   });
 });
 
@@ -37,6 +43,12 @@ test("event settings that were saved are still there after a restart", async () 
     mapUrl: null,
     replyDeadlineDays: 7,
     timeZone: "America/Los_Angeles",
+    childName: null,
+    childFirstName: null,
+    theme: null,
+    childAge: null,
+    clothingSize: null,
+    emblem: "star",
   });
 });
 
@@ -47,7 +59,7 @@ test("a date that is not a real YYYY-MM-DD day is rejected and changes nothing",
     await expect(event.update({ date: bad })).rejects.toThrow(/date/i);
   }
 
-  expect((await event.get()).date).toBe("2026-12-19");
+  expect((await event.get()).date).toBe("2030-06-15");
 });
 
 test("a reply deadline must be a whole number of days from 0 to 365, or empty", async () => {
@@ -78,10 +90,11 @@ test("an event name cannot be blank", async () => {
 
   await expect(event.update({ name: "  " })).rejects.toThrow(/name/i);
 
-  expect((await event.get()).name).toBe("Alex's Birthday");
+  expect((await event.get()).name).toBe("Birthday Party");
 });
 
 const party = (date: string, replyDeadlineDays: number | null): EventSettings => ({
+  childName: null, childFirstName: null, theme: null, childAge: null, clothingSize: null, emblem: "star",
   name: "Party",
   date,
   time: null,
@@ -105,7 +118,7 @@ test("there is no reply deadline until the days are set", () => {
 test("a time zone that does not exist is rejected and changes nothing", async () => {
   const event = createEventStore(testDb());
 
-  await expect(event.update({ timeZone: "Planet/Olympus" })).rejects.toThrow(/time zone/i);
+  await expect(event.update({ timeZone: "Nowhere/Olympus" })).rejects.toThrow(/time zone/i);
 
   expect((await event.get()).timeZone).toBe("America/New_York");
 });
@@ -126,4 +139,21 @@ test("a map link must be a real web address and can be cleared", async () => {
   expect((await event.get()).mapUrl).toBe("https://maps.app.goo.gl/abc");
   await event.update({ mapUrl: "" });
   expect((await event.get()).mapUrl).toBeNull();
+});
+
+test("the birthday child's details are saved, trimmed, and can be cleared", async () => {
+  const event = createEventStore(testDb());
+  await event.update({ childName: " Alex Morgan Smith ", childFirstName: "Alex", theme: "Dinosaurs", childAge: 4, clothingSize: "6", emblem: "planet" });
+  expect(await event.get()).toMatchObject({
+    childName: "Alex Morgan Smith", childFirstName: "Alex", theme: "Dinosaurs", childAge: 4, clothingSize: "6", emblem: "planet",
+  });
+  await event.update({ childName: "", theme: " ", childAge: null, clothingSize: "" });
+  expect(await event.get()).toMatchObject({ childName: null, theme: null, childAge: null, clothingSize: null });
+});
+
+test("the child's age and the emblem must be real choices", async () => {
+  const event = createEventStore(testDb());
+  await expect(event.update({ childAge: -1 })).rejects.toThrow(/age/i);
+  await expect(event.update({ childAge: 2.5 })).rejects.toThrow(/age/i);
+  await expect(event.update({ emblem: "skull" as never })).rejects.toThrow(/emblem/i);
 });

@@ -1,5 +1,5 @@
 ---
-status: accepted (revisit after Alex's party)
+status: accepted (revisit after the first party)
 ---
 
 # Invitations are sent through the phone's Share button, not messaging-platform APIs

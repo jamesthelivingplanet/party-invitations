@@ -1,11 +1,3 @@
-export const party = {
-  child: "Alex Morgan Smith",
-  childFirst: "Alex",
-  age: 4,
-  clothingSize: "6",
-  theme: { en: "Racing Car", es: "Racing Car" },
-};
-
 export function formatDate(iso: string, locale: string) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat(locale, {

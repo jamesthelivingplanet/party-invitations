@@ -1,6 +1,6 @@
 # Birthday Invitations
 
-Lets a Host invite a list of people to a party, send each of them a personalized invitation, and collect their replies. Started for Alex's 2026 birthday, with the aim of growing into a tool for personalized invitations to any event.
+Lets a Host invite a list of people to a party, send each of them a personalized invitation, and collect their replies. Started for a child's 2026 birthday party, with the aim of growing into a tool for personalized invitations to any event.
 
 ## Language
 

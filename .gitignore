@@ -46,3 +46,6 @@ local.db*
 e2e.db*
 test-results/
 playwright-report/
+
+# private notes with real account details
+CLAUDE.local.md

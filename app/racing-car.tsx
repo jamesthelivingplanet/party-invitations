@@ -1,3 +1,5 @@
+import type { Emblem as EmblemKind } from "@/lib/event";
+
 /**
  * Decorative hero: an original classic die-cast-style hot rod (late-60s custom look: Spectraflame blue,
  * low raked body, big exposed rear wheel, small front wheel, redline tires, tinted bubble canopy, chrome
@@ -41,7 +43,7 @@ export function CarDefs() {
         <stop offset="0.45" stopColor="#ffb000" />
         <stop offset="1" stopColor="#ff3d00" />
       </linearGradient>
-      {/* the red planet on the door: lit from the upper left */}
+      {/* the red planet emblem on the door: lit from the upper left */}
       <radialGradient id="rcPlanet" cx="0.36" cy="0.32" r="0.78">
         <stop offset="0" stopColor="#ffb07a" />
         <stop offset="0.45" stopColor="#ec5e2a" />
@@ -91,8 +93,65 @@ export function Wheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
-/** Body, canopy, chrome engine, flames and Planet door emblem; the wheels are drawn separately on top. */
-export function CarBody() {
+/** The door emblem: a star, a red planet, or the first letter of the child's name on a white roundel. */
+function Emblem({ kind, initial }: { kind: EmblemKind; initial: string | null }) {
+  if (kind === "initial") {
+    const letter = (initial ?? "").trim().charAt(0).toUpperCase() || "★";
+    return (
+      <>
+        <circle cx="90" cy="55.8" r="8.5" fill="#fff" stroke="#111" strokeWidth="1.4" />
+        <text x="90" y="60.2" textAnchor="middle" fontSize="12.5" fontWeight="900" fontStyle="italic" fill="#111" fontFamily="Arial, Helvetica, sans-serif">
+          {letter}
+        </text>
+      </>
+    );
+  }
+  if (kind === "star") {
+    return (
+      <>
+        <circle cx="90" cy="55.8" r="8.5" fill="#fff" stroke="#111" strokeWidth="1.4" />
+        <path
+          d="M90 49.2 L92.1 53.9 L97.2 54.4 L93.4 57.8 L94.5 62.8 L90 60.2 L85.5 62.8 L86.6 57.8 L82.8 54.4 L87.9 53.9 Z"
+          fill="#ffd400"
+          stroke="#111"
+          strokeWidth="0.9"
+          strokeLinejoin="round"
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      <circle cx="90" cy="55.8" r="8.5" fill="#ffd9b8" opacity="0.5" />
+      <circle cx="90" cy="55.8" r="7.4" fill="url(#rcPlanet)" />
+      <g clipPath="url(#rcPlanetClip)">
+        {/* darker surface bands */}
+        <path d="M81 54.2 Q85 52 89 53.7 Q93 55.2 99 53 L99 56.6 Q94 58.8 89.6 57.3 Q85.4 55.9 81 57.8 Z" fill="#9a2d12" opacity="0.65" />
+        <path d="M82 60.2 Q87 58.8 91 60.4 Q95 61.8 98 60.2 L98 65 L82 65 Z" fill="#8a2410" opacity="0.5" />
+        {/* polar ice cap */}
+        <ellipse cx="89.2" cy="49.2" rx="3.6" ry="1.7" fill="#fff6ee" />
+        {/* craters: a light rim peeking out below a dark pit */}
+        {[
+          [93.6, 51.6, 1.1],
+          [86.4, 59.6, 1],
+          [94.4, 58.6, 0.75],
+        ].map(([x, y, r]) => (
+          <g key={x}>
+            <circle cx={x + 0.3} cy={y + 0.3} r={r} fill="#ffb98f" opacity="0.6" />
+            <circle cx={x} cy={y} r={r} fill="#8f2a10" />
+          </g>
+        ))}
+      </g>
+      {/* soft highlight and thin dark outline */}
+      <ellipse cx="86.8" cy="52.6" rx="2.4" ry="1.5" fill="#fff" opacity="0.45" transform="rotate(-30 86.8 52.6)" />
+      <circle cx="90" cy="55.8" r="7.4" fill="none" stroke="#3a0d05" strokeWidth="0.9" />
+
+    </>
+  );
+}
+
+/** Body, canopy, chrome engine, flames and door emblem; the wheels are drawn separately on top. */
+export function CarBody({ emblem = "star", initial = null }: { emblem?: EmblemKind; initial?: string | null }) {
   return (
     <g>
       {/* chassis pan */}
@@ -157,30 +216,7 @@ export function CarBody() {
         strokeLinejoin="round"
       />
 
-      {/* door emblem: the red planet (the birthday kid is Alex Planet) */}
-      <circle cx="90" cy="55.8" r="8.5" fill="#ffd9b8" opacity="0.5" />
-      <circle cx="90" cy="55.8" r="7.4" fill="url(#rcPlanet)" />
-      <g clipPath="url(#rcPlanetClip)">
-        {/* darker surface bands */}
-        <path d="M81 54.2 Q85 52 89 53.7 Q93 55.2 99 53 L99 56.6 Q94 58.8 89.6 57.3 Q85.4 55.9 81 57.8 Z" fill="#9a2d12" opacity="0.65" />
-        <path d="M82 60.2 Q87 58.8 91 60.4 Q95 61.8 98 60.2 L98 65 L82 65 Z" fill="#8a2410" opacity="0.5" />
-        {/* polar ice cap */}
-        <ellipse cx="89.2" cy="49.2" rx="3.6" ry="1.7" fill="#fff6ee" />
-        {/* craters: a light rim peeking out below a dark pit */}
-        {[
-          [93.6, 51.6, 1.1],
-          [86.4, 59.6, 1],
-          [94.4, 58.6, 0.75],
-        ].map(([x, y, r]) => (
-          <g key={x}>
-            <circle cx={x + 0.3} cy={y + 0.3} r={r} fill="#ffb98f" opacity="0.6" />
-            <circle cx={x} cy={y} r={r} fill="#8f2a10" />
-          </g>
-        ))}
-      </g>
-      {/* soft highlight and thin dark outline */}
-      <ellipse cx="86.8" cy="52.6" rx="2.4" ry="1.5" fill="#fff" opacity="0.45" transform="rotate(-30 86.8 52.6)" />
-      <circle cx="90" cy="55.8" r="7.4" fill="none" stroke="#3a0d05" strokeWidth="0.9" />
+      <Emblem kind={emblem} initial={initial} />
 
       {/* chrome headers dropping out of the body into a side pipe */}
       <g stroke="#3f454e" strokeWidth="0.8">
@@ -214,7 +250,7 @@ const SPARKS = [
   { dx: 12, dy: -30, r: -68 },
 ];
 
-export default function RacingCar() {
+export default function RacingCar({ emblem, initial }: { emblem: EmblemKind; initial: string | null }) {
   return (
     <div className="rc-stage" aria-hidden="true">
       <div className="rc-scene">
@@ -292,7 +328,7 @@ export default function RacingCar() {
                 <path className="rc-fire" d="M3 54.5 L-30 52 L-18 57 L-36 58.5 L-16 61 L-26 65.5 L3 62.5 Z" fill="url(#rcFire)" />
 
                 <g className="rc-body">
-                  <CarBody />
+                  <CarBody emblem={emblem} initial={initial} />
                 </g>
 
                 {/* big-rear / small-front stance */}

@@ -3,6 +3,7 @@ import { buildIcs, googleCalendarUrl, parseTimeRange, zonedToUtc } from "./calen
 import type { EventSettings } from "./event";
 
 const event: EventSettings = {
+  childName: null, childFirstName: null, theme: null, childAge: null, clothingSize: null, emblem: "star",
   name: "Alex's Birthday", date: "2026-12-19", time: "2:00 PM - 8:00 PM", place: "Fun Park",
   mapUrl: "https://maps.example/x", replyDeadlineDays: 30, timeZone: "America/Los_Angeles",
 };

@@ -8,7 +8,7 @@ This spec covers the work remaining after step 1 shipped (commit `712e8c7`: Gues
 
 ## Problem Statement
 
-I am the Host of my son Alex's birthday party and I have about 100 people to invite. Almost all of them are reachable on WhatsApp and Messenger, and about half read Spanish, not English. Today there is one public link: anyone who opens it types their name and who they are, and an AI model guesses which Guest they are. That works for people who find the link, but it is a poor way to invite people one by one:
+I am the Host of my son's birthday party and I have about 100 people to invite. Almost all of them are reachable on WhatsApp and Messenger, and about half read Spanish, not English. Today there is one public link: anyone who opens it types their name and who they are, and an AI model guesses which Guest they are. That works for people who find the link, but it is a poor way to invite people one by one:
 
 - I cannot send each Guest something that is clearly for them, in their language, that greets them by name and needs no guessing about who they are.
 - I have no record of who I have already sent an invitation to, so with 100 people I lose my place.

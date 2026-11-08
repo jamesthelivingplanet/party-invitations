@@ -3,7 +3,7 @@ import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
 import { withoutLocation } from "@/lib/calendar";
 import { replyDeadlineDate } from "@/lib/event";
-import { formatDate, party } from "@/lib/party";
+import { formatDate } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
 import AddToCalendar from "./add-to-calendar";
 import RacingCar from "./racing-car";
@@ -26,8 +26,8 @@ export default async function Home(props: PageProps<"/">) {
     [t.date, formatDate(event.date, locale)],
     [t.time, event.time ?? t.tbd],
     [t.where, t.whereHidden],
-    [t.age, t.ageValue(party.age)],
-    [t.clothingSize, party.clothingSize],
+    ...(event.childAge !== null ? [[t.age, t.ageValue(event.childAge)] as [string, string]] : []),
+    ...(event.clothingSize ? [[t.clothingSize, event.clothingSize] as [string, string]] : []),
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
 
@@ -35,7 +35,7 @@ export default async function Home(props: PageProps<"/">) {
     <main className="min-h-screen bg-zinc-900 text-white">
       <LangSync locale={locale} />
       <div className="h-7" style={{ background: checker }} />
-      <RacingCar />
+      <RacingCar emblem={event.emblem} initial={event.childFirstName} />
       <section className="mx-auto max-w-xl px-5 py-10 text-center">
         <div className="flex justify-end">
           <Link
@@ -50,9 +50,9 @@ export default async function Home(props: PageProps<"/">) {
           {t.startEngines}
         </p>
         <h1 className="mt-2 text-5xl font-black uppercase italic leading-tight text-red-500">
-          {t.title(party.childFirst)}
+          {t.title(event.childFirstName)}
         </h1>
-        <p className="mt-3 text-zinc-300">{t.invited(party.child, party.theme[locale], party.age)}</p>
+        <p className="mt-3 text-zinc-300">{t.invited(event.childName, event.theme, event.childAge)}</p>
 
         <dl className="mt-8 grid gap-3 rounded-2xl border-2 border-dashed border-yellow-400 p-5 text-left">
           {rows.map(([k, v]) => (

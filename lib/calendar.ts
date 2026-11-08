@@ -77,10 +77,10 @@ export function buildIcs(event: EventSettings, now: Date, details?: string): str
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Alex Birthday//EN",
+    "PRODID:-//Party Invitations//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:birthday-${event.date}@party-invitations.vercel.app`,
+    `UID:birthday-${event.date}@party-invitations`,
     `DTSTAMP:${stamp(now)}`,
     w.allDay ? `DTSTART;VALUE=DATE:${dayStamp(w.start)}` : `DTSTART:${stamp(w.start)}`,
     w.allDay ? `DTEND;VALUE=DATE:${dayStamp(w.end)}` : `DTEND:${stamp(w.end)}`,

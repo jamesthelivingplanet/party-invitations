@@ -20,9 +20,9 @@ function ordinalEs(n: number) {
 
 const en = {
   startEngines: "Start your engines",
-  title: (name: string) => `${name}'s Birthday Race`,
-  invited: (child: string, theme: string, age: number) =>
-    `You're invited to ${child}'s ${ordinalEn(age)} birthday party! ${theme} theme.`,
+  title: (name: string | null) => (name ? `${name}'s Birthday Race` : "Birthday Race"),
+  invited: (child: string | null, theme: string | null, age: number | null) =>
+    `You're invited to ${child ? `${child}'s` : "a"} ${age !== null ? `${ordinalEn(age)} ` : ""}birthday party!${theme ? ` ${theme} theme.` : ""}`,
   date: "📅 Date",
   time: "⏰ Time",
   where: "📍 Where",
@@ -49,7 +49,7 @@ const en = {
   doneNoTitle: "Thanks for letting us know!",
   doneConfirmedTitle: "You're confirmed!",
   doneReviewTitle: "We got your reply!",
-  doneReview: "We'll confirm it soon. Alex can't wait to see you at the party.",
+  doneReview: "We'll confirm it soon. We can't wait to see you at the party.",
   requestTitle: "We'd love to have you at the party",
   requestIntro:
     "We couldn't find your name on our list, but we'd love to have you at the party! Leave your details here and we'll get back to you as soon as we can to make sure your invitation is right.",
@@ -69,7 +69,7 @@ const en = {
   requestDone: "We have your details and will get back to you soon.",
   errRequestName: "Please tell us your name.",
   errRequestContact: "Please give at least one way to reach you: phone, email, WhatsApp, Messenger or another way.",
-  doneYes: "Alex can't wait to see you at the party.",
+  doneYes: "We can't wait to see you at the party.",
   doneNo: "We'll miss you at the race.",
   errMissing: "Please fill in your name and who you are.",
   errGeneric: "Something went wrong. Try again!",
@@ -122,9 +122,9 @@ const en = {
 
 const es: typeof en = {
   startEngines: "Enciendan sus motores",
-  title: (name) => `La Carrera de Cumpleaños de ${name}`,
+  title: (name) => (name ? `La Carrera de Cumpleaños de ${name}` : "La Carrera de Cumpleaños"),
   invited: (child, theme, age) =>
-    `¡Estás invitado al ${ordinalEs(age)} cumpleaños de ${child}! Temática de ${theme}.`,
+    `¡Estás invitado al ${age !== null ? `${ordinalEs(age)} ` : ""}cumpleaños${child ? ` de ${child}` : ""}!${theme ? ` Temática de ${theme}.` : ""}`,
   date: "📅 Fecha",
   time: "⏰ Hora",
   where: "📍 Lugar",
@@ -151,7 +151,7 @@ const es: typeof en = {
   doneNoTitle: "¡Gracias por avisarnos!",
   doneConfirmedTitle: "¡Estás confirmado!",
   doneReviewTitle: "¡Recibimos tu respuesta!",
-  doneReview: "La confirmaremos pronto. Alex no puede esperar a verte en la fiesta.",
+  doneReview: "La confirmaremos pronto. No podemos esperar a verte en la fiesta.",
   requestTitle: "Nos encantaría tenerte en la fiesta",
   // TODO(native review)
   requestIntro:
@@ -173,7 +173,7 @@ const es: typeof en = {
   requestDone: "Tenemos tus datos y te contactaremos pronto.",
   errRequestName: "Por favor escribe tu nombre.",
   errRequestContact: "Por favor da al menos una forma de contactarte: teléfono, correo, WhatsApp, Messenger u otra.",
-  doneYes: "Alex no puede esperar a verte en la fiesta.",
+  doneYes: "No podemos esperar a verte en la fiesta.",
   doneNo: "Te extrañaremos en la carrera.",
   errMissing: "Por favor escribe tu nombre y quién eres.",
   errGeneric: "Algo salió mal. ¡Inténtalo de nuevo!",

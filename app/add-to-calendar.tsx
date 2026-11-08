@@ -15,7 +15,7 @@ export default function AddToCalendar({ event, locale, code }: { event: EventSet
         <a href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer" className={button}>
           Google
         </a>
-        <a href={code ? `/api/calendar?code=${encodeURIComponent(code)}` : "/api/calendar"} download="party-invitations.ics" className={button}>
+        <a href={code ? `/api/calendar?code=${encodeURIComponent(code)}` : "/api/calendar"} download="birthday.ics" className={button}>
           {t.calendarOther}
         </a>
       </div>

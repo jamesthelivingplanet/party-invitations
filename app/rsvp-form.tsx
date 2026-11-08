@@ -13,7 +13,7 @@ function RevealedLocation({ locale, location }: { locale: Locale; location: Loca
     const url = URL.createObjectURL(new Blob([location.ics], { type: "text/calendar" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "party-invitations.ics";
+    link.download = "birthday.ics";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

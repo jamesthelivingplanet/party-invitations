@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/admin-auth";
-import { replyDeadlineDate, timeZoneOptions } from "@/lib/event";
+import { EMBLEMS, EMBLEM_LABELS, replyDeadlineDate, timeZoneOptions } from "@/lib/event";
 import { formatDate } from "@/lib/party";
 import { eventStore } from "@/lib/stores";
 import { AdminShell } from "../shell";
@@ -95,6 +95,39 @@ export default async function Settings(props: PageProps<"/admin/settings">) {
             <p className={hint}>
               Where the event happens. Replies close at the end of the deadline day in this time zone.
             </p>
+          </div>
+          <div className="sm:col-span-2 border-t border-zinc-200 pt-4">
+            <h3 className="text-sm font-bold text-zinc-900">The birthday child</h3>
+            <p className={hint}>Shown on the invitation. Leave a box empty to leave it out.</p>
+          </div>
+          <div>
+            <label htmlFor="childName" className={label}>Full name</label>
+            <input id="childName" name="childName" defaultValue={event.childName ?? ""} maxLength={200} className={field} placeholder="e.g. Alex Morgan Smith" />
+          </div>
+          <div>
+            <label htmlFor="childFirstName" className={label}>Name for the headline</label>
+            <input id="childFirstName" name="childFirstName" defaultValue={event.childFirstName ?? ""} maxLength={200} className={field} placeholder="e.g. Alex" />
+          </div>
+          <div>
+            <label htmlFor="childAge" className={label}>Turning age</label>
+            <input id="childAge" name="childAge" type="number" min={0} max={120} step={1} defaultValue={event.childAge ?? ""} className={field} placeholder="e.g. 4" />
+          </div>
+          <div>
+            <label htmlFor="clothingSize" className={label}>Clothing size</label>
+            <input id="clothingSize" name="clothingSize" defaultValue={event.clothingSize ?? ""} maxLength={200} className={field} placeholder="e.g. 6" />
+            <p className={hint}>A hint for gift-givers.</p>
+          </div>
+          <div>
+            <label htmlFor="theme" className={label}>Party theme</label>
+            <input id="theme" name="theme" defaultValue={event.theme ?? ""} maxLength={200} className={field} placeholder="e.g. Dinosaurs" />
+          </div>
+          <div>
+            <label htmlFor="emblem" className={label}>Car door emblem</label>
+            <select id="emblem" name="emblem" defaultValue={event.emblem} className={field}>
+              {EMBLEMS.map((e) => (
+                <option key={e} value={e}>{EMBLEM_LABELS[e]}</option>
+              ))}
+            </select>
           </div>
           <div className="sm:col-span-2">
             <button className="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-zinc-700">
