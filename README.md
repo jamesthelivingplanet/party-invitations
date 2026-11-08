@@ -20,3 +20,7 @@ npm run dev
 Leave the Turso variables unset to use a throwaway local database. `npm test` runs the unit tests; `npm run test:e2e` runs the browser tests.
 
 See `GLOSSARY.md` for the vocabulary and `docs/adr/` for design decisions.
+
+## License
+
+All rights reserved. The code is public for reading only; see `LICENSE`.
