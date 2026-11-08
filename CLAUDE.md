@@ -22,7 +22,7 @@ Real hosting, database and account details are not kept in this repository. They
 - `npm run dev` runs the app locally. Leave the Turso variables unset and it uses a throwaway SQLite file, `local.db` (git-ignored).
 - `npm test` runs the Vitest suite. Tests use a real in-memory database; only the Jev model and the clock are faked.
 - `CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e` runs the Playwright browser tests (phone width) on a throwaway `e2e.db` with a stub in place of Jev. It starts its own server on port 3100.
-- `npx tsc --noEmit` typechecks, `npm run lint` lints, and `npm run build` builds.
+- `npm run typecheck` typechecks (it generates the route types first, which a fresh clone lacks), `npm run lint` lints, and `npm run build` builds.
 - Settings are environment variables; see `.env.example` for the names. Never commit or print real values.
 
 ### Working rules
