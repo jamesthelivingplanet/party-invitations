@@ -26,7 +26,6 @@ export default async function Home(props: PageProps<"/">) {
     [t.date, formatDate(event.date, locale)],
     [t.time, event.time ?? t.tbd],
     [t.where, t.whereHidden],
-    ...(event.childAge !== null ? [[t.age, t.ageValue(event.childAge)] as [string, string]] : []),
     ...(event.clothingSize ? [[t.clothingSize, event.clothingSize] as [string, string]] : []),
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];

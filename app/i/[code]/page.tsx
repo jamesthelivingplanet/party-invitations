@@ -80,7 +80,6 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
         (event.place ?? t.tbd)
       ),
     ],
-    ...(event.childAge !== null ? [[t.age, t.ageValue(event.childAge)] as [string, string]] : []),
     ...(event.clothingSize ? [[t.clothingSize, event.clothingSize] as [string, string]] : []),
     [t.rsvpBy, deadline ? formatDate(deadline, locale) : t.tbd],
   ];
