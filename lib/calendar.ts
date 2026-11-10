@@ -69,7 +69,7 @@ export function googleCalendarUrl(event: EventSettings, details?: string): strin
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
-const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 export function buildIcs(event: EventSettings, now: Date, details?: string): string {
   const w = eventWindow(event);
@@ -82,6 +82,8 @@ export function buildIcs(event: EventSettings, now: Date, details?: string): str
     "BEGIN:VEVENT",
     `UID:birthday-${event.date}@party-invitations`,
     `DTSTAMP:${stamp(now)}`,
+    // Same UID plus a higher SEQUENCE tells calendar apps this is an update to the saved event, not a duplicate or a repeat to ignore.
+    `SEQUENCE:${Math.floor(now.getTime() / 1000)}`,
     w.allDay ? `DTSTART;VALUE=DATE:${dayStamp(w.start)}` : `DTSTART:${stamp(w.start)}`,
     w.allDay ? `DTEND;VALUE=DATE:${dayStamp(w.end)}` : `DTEND:${stamp(w.end)}`,
     `SUMMARY:${escapeText(event.name)}`,

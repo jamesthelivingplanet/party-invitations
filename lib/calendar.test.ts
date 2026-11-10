@@ -44,3 +44,13 @@ test("the Google Calendar link carries the title, times and location", () => {
   expect(url.searchParams.get("dates")).toBe("20261219T220000Z/20261220T040000Z");
   expect(url.searchParams.get("location")).toBe("Fun Park");
 });
+
+test("each download carries a higher SEQUENCE so a saved copy gets updated, and escapes semicolons", () => {
+  const first = buildIcs(event, new Date("2026-11-05T00:00:00Z"));
+  const later = buildIcs({ ...event, time: "1:00 PM - 7:00 PM" }, new Date("2026-11-10T00:00:00Z"));
+  const sequence = (ics: string) => Number(/SEQUENCE:(\d+)/.exec(ics)?.[1]);
+  expect(sequence(later)).toBeGreaterThan(sequence(first));
+  expect(later).toContain("UID:birthday-2026-12-19@party-invitations");
+  expect(later).toContain("DTSTART:20261219T210000Z");
+  expect(buildIcs({ ...event, place: "Main St; Suite 2" }, new Date())).toContain("LOCATION:Main St\\; Suite 2");
+});
