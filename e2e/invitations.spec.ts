@@ -124,3 +124,28 @@ test("the Host edits one Guest's message, it is saved for Copy, and reset restor
   await row.getByRole("button", { name: "Copy message" }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Hi Yara Unica!");
 });
+
+test("the Host searches the list and changes the language a Guest's message is sent in", async ({ page }) => {
+  await loginAsHost(page);
+  await page.goto("/admin/guests");
+  for (const name of ["Búsqueda Uno", "Busqueda Dos"]) {
+    await page.fill("#new-name", name);
+    await page.getByRole("button", { name: "Add guest" }).click();
+  }
+
+  await page.goto("/admin/invitations");
+  await page.getByLabel("Search Guests").fill("busqueda uno");
+  await expect(page.locator("li[data-guest]")).toHaveCount(1);
+  await expect(page.locator("li[data-guest='Búsqueda Uno']")).toBeVisible();
+  await page.getByLabel("Search Guests").fill("zzz");
+  await expect(page.getByText("No Guests match your search.")).toBeVisible();
+  await page.getByLabel("Search Guests").fill("busqueda uno");
+
+  await page.getByLabel("Message language for Búsqueda Uno").selectOption("es");
+  await expect(page.getByLabel("Message language for Búsqueda Uno")).toHaveValue("es");
+  await page.reload();
+  await expect(page.getByLabel("Message language for Búsqueda Uno")).toHaveValue("es");
+  await page.selectOption("#preview-guest", { label: "Búsqueda Uno (Spanish)" });
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(page.getByTestId("message-preview")).toContainText("¡Hola Búsqueda Uno!");
+});

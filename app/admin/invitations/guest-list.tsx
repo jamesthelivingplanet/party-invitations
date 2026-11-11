@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { InvitationRow } from "@/lib/invitations";
-import { resetGuestMessage, saveGuestMessage, toggleSent } from "./actions";
+import { resetGuestMessage, saveGuestMessage, setGuestLanguage, toggleSent } from "./actions";
 import { HostReply } from "../host-reply";
 import { ShareButton } from "./share-button";
 
@@ -34,6 +34,7 @@ export function GuestList({
   initialNotReplied: boolean;
 }) {
   const [notReplied, setNotReplied] = useState(initialNotReplied);
+  const [query, setQuery] = useState("");
 
   function choose(value: boolean) {
     setNotReplied(value);
@@ -44,12 +45,22 @@ export function GuestList({
     }
   }
 
-  const shown = notReplied ? rows.filter((r) => r.status !== "replied") : rows;
+  const plain = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const needle = plain(query.trim());
+  const shown = (notReplied ? rows.filter((r) => r.status !== "replied") : rows).filter((r) => !needle || plain(r.name).includes(needle));
   const pill = (active: boolean) =>
     `inline-flex min-h-11 cursor-pointer items-center rounded-xl px-4 ring-1 ring-inset ${active ? "bg-zinc-900 text-white ring-zinc-900" : "bg-white text-zinc-800 ring-zinc-300"}`;
 
   return (
     <>
+      <input
+        type="search"
+        aria-label="Search Guests"
+        placeholder="Search Guests"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className={field}
+      />
       <div role="group" aria-label="Filter" className="flex gap-2 text-sm font-semibold">
         <button type="button" aria-pressed={!notReplied} onClick={() => choose(false)} className={pill(!notReplied)}>
           All Guests
@@ -59,14 +70,26 @@ export function GuestList({
         </button>
       </div>
       {shown.length === 0 ? (
-        <p className="text-sm text-zinc-600">{notReplied ? "Everyone has replied." : "No Guests yet."}</p>
+        <p className="text-sm text-zinc-600">{needle ? "No Guests match your search." : notReplied ? "Everyone has replied." : "No Guests yet."}</p>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-2xl bg-white ring-1 ring-zinc-200">
           {shown.map((r) => (
             <li key={r.guestId} data-guest={r.name} className="space-y-2 p-4">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="min-w-0 break-words font-semibold text-zinc-900">{r.name}</span>
-                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">{r.language === "es" ? "Spanish" : "English"}</span>
+                <form action={setGuestLanguage}>
+                  <input type="hidden" name="guest" value={r.guestId} />
+                  <select
+                    name="language"
+                    aria-label={`Message language for ${r.name}`}
+                    defaultValue={r.language}
+                    onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                    className="min-h-11 rounded-xl border border-zinc-300 bg-white px-2 text-sm font-medium text-zinc-700"
+                  >
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                  </select>
+                </form>
                 <span data-testid="status" className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle[r.status]}`}>
                   {statusLabel[r.status]}
                 </span>

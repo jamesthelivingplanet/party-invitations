@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdminAction } from "@/lib/admin-auth";
 import type { Language } from "@/lib/guests";
 import { ValidationError } from "@/lib/invitations";
-import { invitationStore } from "@/lib/stores";
+import { guestStore, invitationStore } from "@/lib/stores";
 
 export async function saveTemplate(data: FormData) {
   await requireAdminAction();
@@ -55,4 +55,13 @@ export async function resetGuestMessage(data: FormData) {
   await invitationStore.resetMessage(String(data.get("guest") ?? ""));
   revalidatePath("/admin/invitations");
   redirect("/admin/invitations?edited=reset");
+}
+
+/** Change the language this Guest's message is sent in. A saved one-off message keeps its text. */
+export async function setGuestLanguage(data: FormData) {
+  await requireAdminAction();
+  const language = String(data.get("language") ?? "") as Language;
+  if (language !== "en" && language !== "es") return;
+  await guestStore.update(String(data.get("guest") ?? ""), { language });
+  revalidatePath("/admin/invitations");
 }
