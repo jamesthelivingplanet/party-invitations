@@ -4,6 +4,7 @@ import type { EventSettings } from "./event";
 
 const event: EventSettings = {
   childName: null, childFirstName: null, theme: null, childAge: null, clothingSize: null, emblem: "star",
+  city: null, region: null, country: null,
   name: "Alex's Birthday", date: "2026-12-19", time: "2:00 PM - 8:00 PM", place: "Fun Park",
   mapUrl: "https://maps.example/x", replyDeadlineDays: 30, timeZone: "America/Los_Angeles",
 };
@@ -53,4 +54,10 @@ test("each download carries a higher SEQUENCE so a saved copy gets updated, and 
   expect(later).toContain("UID:birthday-2026-12-19@party-invitations");
   expect(later).toContain("DTSTART:20261219T210000Z");
   expect(buildIcs({ ...event, place: "Main St; Suite 2" }, new Date())).toContain("LOCATION:Main St\\; Suite 2");
+});
+
+test("the calendar file and Google link carry the full place with city, state and country", () => {
+  const full = { ...event, city: "Ensenada", region: "Baja California", country: "Mexico" };
+  expect(buildIcs(full, new Date())).toContain("LOCATION:Fun Park\\, Ensenada\\, Baja California\\, Mexico");
+  expect(new URL(googleCalendarUrl(full)).searchParams.get("location")).toBe("Fun Park, Ensenada, Baja California, Mexico");
 });

@@ -1,5 +1,5 @@
 import type { Client } from "@libsql/client";
-import { replyDeadlineDate, type createEventStore } from "./event";
+import { fullPlace, replyDeadlineDate, type createEventStore } from "./event";
 import type { createGuestStore, Language } from "./guests";
 import { formatDate } from "./party";
 import type { createReplyStore } from "./replies";
@@ -238,7 +238,7 @@ export function createInvitationStore(
         event: event.name,
         date: formatDate(event.date, guest.language),
         time: event.time ?? tbd,
-        place: event.place ?? tbd,
+        place: fullPlace(event) ?? tbd,
         deadline: deadline ? formatDate(deadline, guest.language) : tbd,
       };
       // One pass, so a value that looks like a placeholder is never expanded again.

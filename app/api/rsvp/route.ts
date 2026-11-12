@@ -1,6 +1,7 @@
 import { readCompanions } from "@/lib/companions-input";
 import { clampPartySize } from "@/lib/party";
 import { failureStatus } from "@/lib/reply-http";
+import { fullPlace } from "@/lib/event";
 import { buildIcs, googleCalendarUrl } from "@/lib/calendar";
 import { eventStore, replyStore } from "@/lib/stores";
 
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   if (outcome === "confirmed" && attending) {
     const event = await eventStore.get();
     location = {
-      place: event.place,
+      place: fullPlace(event),
       mapUrl: event.mapUrl,
       googleUrl: googleCalendarUrl(event),
       ics: buildIcs(event, new Date()),

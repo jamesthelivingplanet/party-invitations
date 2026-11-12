@@ -5,6 +5,10 @@ export type EventSettings = {
   date: string; // YYYY-MM-DD
   time: string | null;
   place: string | null;
+  /** City, state and country, appended after the Place wherever guests see it ("Place, City, State, Country"). */
+  city: string | null;
+  region: string | null;
+  country: string | null;
   /** Google Maps link for the place, shown as a link next to it. */
   mapUrl: string | null;
   replyDeadlineDays: number | null;
@@ -33,6 +37,9 @@ const defaults: EventSettings = {
   date: "2030-06-15",
   time: null,
   place: null,
+  city: null,
+  region: null,
+  country: null,
   mapUrl: null,
   replyDeadlineDays: null,
   timeZone: "America/New_York",
@@ -122,6 +129,9 @@ export function createEventStore(db: Client) {
         date TEXT NOT NULL,
         time TEXT,
         place TEXT,
+        city TEXT,
+        region TEXT,
+        country TEXT,
         map_url TEXT,
         reply_deadline_days INTEGER,
         time_zone TEXT,
@@ -135,7 +145,7 @@ export function createEventStore(db: Client) {
     `).then(async () => {
       // Databases created before the time zone setting get the column on first use.
       const { rows } = await db.execute("PRAGMA table_info(event_settings)");
-      for (const column of ["time_zone", "map_url", "child_name", "child_first_name", "theme", "child_age", "clothing_size", "emblem"]) {
+      for (const column of ["time_zone", "map_url", "city", "region", "country", "child_name", "child_first_name", "theme", "child_age", "clothing_size", "emblem"]) {
         if (rows.some((r) => r.name === column)) continue;
         try {
           await db.execute(`ALTER TABLE event_settings ADD COLUMN ${column} ${column === "child_age" ? "INTEGER" : "TEXT"}`);
@@ -156,6 +166,9 @@ export function createEventStore(db: Client) {
       date: String(row.date),
       time: row.time === null ? null : String(row.time),
       place: row.place === null ? null : String(row.place),
+      city: text(row.city),
+      region: text(row.region),
+      country: text(row.country),
       mapUrl: row.map_url === null || row.map_url === undefined ? null : String(row.map_url),
       replyDeadlineDays: row.reply_deadline_days === null ? null : Number(row.reply_deadline_days),
       timeZone: row.time_zone === null || row.time_zone === undefined ? defaults.timeZone : String(row.time_zone),
@@ -176,6 +189,9 @@ export function createEventStore(db: Client) {
       next.name = cleanName(next.name);
       next.time = cleanText(next.time);
       next.place = cleanText(next.place);
+      next.city = cleanText(next.city);
+      next.region = cleanText(next.region);
+      next.country = cleanText(next.country);
       next.mapUrl = cleanMapUrl(next.mapUrl);
       next.date = cleanDate(next.date);
       next.replyDeadlineDays = cleanDeadlineDays(next.replyDeadlineDays);
@@ -187,22 +203,28 @@ export function createEventStore(db: Client) {
       next.childAge = cleanAge(next.childAge);
       next.emblem = cleanEmblem(next.emblem);
       await db.execute({
-        sql: `INSERT INTO event_settings (id, name, date, time, place, map_url, reply_deadline_days, time_zone,
+        sql: `INSERT INTO event_settings (id, name, date, time, place, city, region, country, map_url, reply_deadline_days, time_zone,
                                           child_name, child_first_name, theme, child_age, clothing_size, emblem)
-              VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET name = excluded.name, date = excluded.date,
-                time = excluded.time, place = excluded.place, map_url = excluded.map_url,
+                time = excluded.time, place = excluded.place, city = excluded.city, region = excluded.region, country = excluded.country, map_url = excluded.map_url,
                 reply_deadline_days = excluded.reply_deadline_days,
                 time_zone = excluded.time_zone, child_name = excluded.child_name,
                 child_first_name = excluded.child_first_name, theme = excluded.theme, child_age = excluded.child_age,
                 clothing_size = excluded.clothing_size, emblem = excluded.emblem`,
         args: [
-          next.name, next.date, next.time, next.place, next.mapUrl, next.replyDeadlineDays, next.timeZone,
+          next.name, next.date, next.time, next.place, next.city, next.region, next.country, next.mapUrl, next.replyDeadlineDays, next.timeZone,
           next.childName, next.childFirstName, next.theme, next.childAge, next.clothingSize, next.emblem,
         ],
       });
     },
   };
+}
+
+/** The Place with its city, state and country appended ("El Patio, Ensenada, Baja California, Mexico"); null when no Place is set. */
+export function fullPlace(event: Pick<EventSettings, "place" | "city" | "region" | "country">): string | null {
+  if (!event.place) return null;
+  return [event.place, event.city, event.region, event.country].filter(Boolean).join(", ");
 }
 
 /** The last day replies are accepted: the event date minus the deadline days, or null if unset. */

@@ -1,4 +1,4 @@
-import type { EventSettings } from "./event";
+import { fullPlace, type EventSettings } from "./event";
 
 type Clock = { h: number; m: number };
 
@@ -63,7 +63,8 @@ export function googleCalendarUrl(event: EventSettings, details?: string): strin
   const w = eventWindow(event);
   const dates = w.allDay ? `${dayStamp(w.start)}/${dayStamp(w.end)}` : `${stamp(w.start)}/${stamp(w.end)}`;
   const params = new URLSearchParams({ action: "TEMPLATE", text: event.name, dates });
-  if (event.place) params.set("location", event.place);
+  const place = fullPlace(event);
+  if (place) params.set("location", place);
   const note = [details, event.mapUrl].filter(Boolean).join("\n");
   if (note) params.set("details", note);
   return `https://calendar.google.com/calendar/render?${params}`;
@@ -87,7 +88,7 @@ export function buildIcs(event: EventSettings, now: Date, details?: string): str
     w.allDay ? `DTSTART;VALUE=DATE:${dayStamp(w.start)}` : `DTSTART:${stamp(w.start)}`,
     w.allDay ? `DTEND;VALUE=DATE:${dayStamp(w.end)}` : `DTEND:${stamp(w.end)}`,
     `SUMMARY:${escapeText(event.name)}`,
-    ...(event.place ? [`LOCATION:${escapeText(event.place)}`] : []),
+    ...(fullPlace(event) ? [`LOCATION:${escapeText(fullPlace(event)!)}`] : []),
     ...(note ? [`DESCRIPTION:${escapeText(note)}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",

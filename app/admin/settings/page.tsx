@@ -58,6 +58,19 @@ export default async function Settings(props: PageProps<"/admin/settings">) {
             <label htmlFor="place" className={label}>Place</label>
             <input id="place" name="place" defaultValue={event.place ?? ""} maxLength={200} className={field} placeholder="e.g. 123 Main St, Springfield" />
           </div>
+          <div>
+            <label htmlFor="city" className={label}>City</label>
+            <input id="city" name="city" defaultValue={event.city ?? ""} maxLength={200} className={field} placeholder="e.g. Ensenada" />
+          </div>
+          <div>
+            <label htmlFor="region" className={label}>State</label>
+            <input id="region" name="region" defaultValue={event.region ?? ""} maxLength={200} className={field} placeholder="e.g. Baja California" />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="country" className={label}>Country</label>
+            <input id="country" name="country" defaultValue={event.country ?? ""} maxLength={200} className={field} placeholder="e.g. Mexico" />
+            <p className={hint}>Optional. City, State and Country are added after the Place wherever guests see it.</p>
+          </div>
           <div className="sm:col-span-2">
             <label htmlFor="mapUrl" className={label}>Google Maps link</label>
             <input id="mapUrl" name="mapUrl" type="url" defaultValue={event.mapUrl ?? ""} maxLength={500} className={field} placeholder="https://maps.app.goo.gl/..." />

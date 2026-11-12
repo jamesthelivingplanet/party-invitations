@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { dictionaries, resolveLocale } from "@/lib/i18n";
-import { replyDeadlineDate } from "@/lib/event";
+import { fullPlace, replyDeadlineDate } from "@/lib/event";
 import { formatDate } from "@/lib/party";
 import { eventStore, replyStore } from "@/lib/stores";
 import AddToCalendar from "../../add-to-calendar";
@@ -74,10 +74,10 @@ export default async function PersonalInvitation(props: PageProps<"/i/[code]">) 
       t.where,
       event.place && event.mapUrl ? (
         <a href={event.mapUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-yellow-400 underline-offset-4 hover:text-yellow-400">
-          {event.place} 📍
+          {fullPlace(event)} 📍
         </a>
       ) : (
-        (event.place ?? t.tbd)
+        (fullPlace(event) ?? t.tbd)
       ),
     ],
     ...(event.clothingSize ? [[t.clothingSize, event.clothingSize] as [string, string]] : []),

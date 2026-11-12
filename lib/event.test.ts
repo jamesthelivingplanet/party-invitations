@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { testDb } from "@/test/db";
-import { createEventStore, replyDeadlineDate, timeZoneOptions, TIME_ZONE_CHOICES, type EventSettings } from "./event";
+import { createEventStore, fullPlace, replyDeadlineDate, timeZoneOptions, TIME_ZONE_CHOICES, type EventSettings } from "./event";
 
 test("a fresh event is a generic birthday party on 2030-06-15 with no time, place or deadline yet", async () => {
   const event = await createEventStore(testDb()).get();
@@ -10,6 +10,9 @@ test("a fresh event is a generic birthday party on 2030-06-15 with no time, plac
     date: "2030-06-15",
     time: null,
     place: null,
+    city: null,
+    region: null,
+    country: null,
     mapUrl: null,
     replyDeadlineDays: null,
     timeZone: "America/New_York",
@@ -40,6 +43,9 @@ test("event settings that were saved are still there after a restart", async () 
     date: "2026-12-20",
     time: "2:00 PM - 5:00 PM",
     place: "123 Main St",
+    city: null,
+    region: null,
+    country: null,
     mapUrl: null,
     replyDeadlineDays: 7,
     timeZone: "America/Los_Angeles",
@@ -95,6 +101,7 @@ test("an event name cannot be blank", async () => {
 
 const party = (date: string, replyDeadlineDays: number | null): EventSettings => ({
   childName: null, childFirstName: null, theme: null, childAge: null, clothingSize: null, emblem: "star",
+  city: null, region: null, country: null,
   name: "Party",
   date,
   time: null,
@@ -156,4 +163,11 @@ test("the child's age and the emblem must be real choices", async () => {
   await expect(event.update({ childAge: -1 })).rejects.toThrow(/age/i);
   await expect(event.update({ childAge: 2.5 })).rejects.toThrow(/age/i);
   await expect(event.update({ emblem: "skull" as never })).rejects.toThrow(/emblem/i);
+});
+
+test("the full place adds city, state and country after the place name, skipping any left empty", () => {
+  const base = { place: "El Patio de mi Casa", city: "Ensenada", region: "Baja California", country: "Mexico" };
+  expect(fullPlace(base)).toBe("El Patio de mi Casa, Ensenada, Baja California, Mexico");
+  expect(fullPlace({ ...base, region: null })).toBe("El Patio de mi Casa, Ensenada, Mexico");
+  expect(fullPlace({ ...base, place: null })).toBeNull();
 });
