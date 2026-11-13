@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Client, InStatement } from "@libsql/client";
 import { ensureRsvpSchema } from "./db";
 import { replyDeadlinePassed, type EventSettings } from "./event";
-import type { Guest, GuestInput, Language } from "./guests";
+import { ValidationError, type Guest, type GuestInput, type Language } from "./guests";
 import type { JevAnswer } from "./match";
 import { MAX_PARTY_SIZE } from "./party";
 
@@ -203,6 +203,7 @@ type Row = {
 type Guests = {
   list(opts?: { includeArchived?: boolean }): Promise<Guest[]>;
   add(input: GuestInput): Promise<Guest>;
+  setPartner(id: string, partnerId: string | null): Promise<void>;
 };
 
 function parseChildren(json: string | null): Child[] | null {
@@ -591,13 +592,27 @@ export function createReplyStore(
      * Accept a Request: the person becomes a Guest in the chosen language, the Reply that came with the Request
      * (answer, Party size, Companions) becomes their current Reply, and the Request is removed.
      */
-    async acceptRequest(id: number, language: Language): Promise<"accepted" | "not_found"> {
+    async acceptRequest(
+      id: number,
+      language: Language,
+      opts: { name?: string; partnerId?: string | null; hasChildren?: boolean } = {},
+    ): Promise<"accepted" | "not_found"> {
       await ensure();
+      // Check the partner first, so a refused partner does not use up the Request or leave a half-added Guest.
+      if (opts.partnerId && !(await deps.guests.list()).some((g) => g.id === opts.partnerId && !g.partnerId)) {
+        throw new ValidationError("Pick another active guest without a partner.");
+      }
       // Removing the row first claims it, so a double submit cannot make two Guests.
       const gone = await db.execute({ sql: "DELETE FROM requests WHERE id = ? RETURNING *", args: [id] });
       const r = gone.rows[0];
       if (!r) return "not_found";
-      const guest = await deps.guests.add({ name: String(r.name), language, notes: "" });
+      const guest = await deps.guests.add({
+        name: opts.name?.trim() || String(r.name),
+        language,
+        notes: "",
+        hasChildren: opts.hasChildren,
+      });
+      if (opts.partnerId) await deps.guests.setPartner(guest.id, opts.partnerId);
       if (r.attending !== null) {
         await db.execute({
           sql: `INSERT INTO rsvps (name, relation, attending, party_size, companions, matched_guest_id, confidence, status)

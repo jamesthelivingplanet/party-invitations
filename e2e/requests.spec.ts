@@ -19,9 +19,9 @@ test("the Host accepts a Request in Spanish: a Guest with a Personal link appear
   await page.goto("/admin/requests");
 
   await card.locator("select[name=language]").selectOption("es");
-  await card.getByRole("button", { name: "Accept request" }).click();
+  await card.getByRole("button", { name: "Add as new guest" }).click();
   // Nothing happens until the second step.
-  await expect(page.getByText("Accept request and add “Zed Acceptable” as a guest?")).toBeVisible();
+  await expect(page.getByText("Add this person as a new guest?")).toBeVisible();
   await page.getByRole("button", { name: "Yes, confirm" }).click();
 
   await expect(page.locator("li", { hasText: "accept-req-case" })).toHaveCount(0);

@@ -1290,3 +1290,23 @@ test("a Guest's own newer Reply replaces what the Host recorded", async () => {
   expect(s.coming).toEqual([]);
   expect(s.declined.map((e) => [e.name, e.by])).toEqual([["Ana", "jev"]]);
 });
+
+test("accepting a Request can rename the new Guest, link a partner and mark children; a refused partner keeps the Request", async () => {
+  const { guests, replies } = await setup();
+  const anna = await guests.add({ name: "Anna", language: "en", notes: "" });
+  const taken = await guests.add({ name: "Taken", language: "en", notes: "" });
+  const other = await guests.add({ name: "Other", language: "en", notes: "" });
+  await guests.setPartner(taken.id, other.id);
+  await replies.submitRequest(request({ name: "mama de milena" }));
+  const [req] = await replies.listRequests();
+
+  await expect(replies.acceptRequest(req.id, "en", { partnerId: taken.id })).rejects.toThrow();
+  expect(await replies.listRequests()).toHaveLength(1);
+
+  await replies.acceptRequest(req.id, "es", { name: "  Paola Moheyer ", partnerId: anna.id, hasChildren: true });
+
+  const all = await guests.list();
+  const paola = all.find((g) => g.name === "Paola Moheyer");
+  expect(paola).toMatchObject({ language: "es", partnerId: anna.id, hasChildren: true });
+  expect(all.find((g) => g.id === anna.id)?.partnerId).toBe(paola?.id);
+});
